@@ -8,6 +8,7 @@ export default function App() {
   const [status, setStatus] = useState('idle') // idle | processing | done | error
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState('')
+  const [processingMsg, setProcessingMsg] = useState('')
   const [showSettings, setShowSettings] = useState(false)
 
   const handleFile = async (file) => {
@@ -18,8 +19,9 @@ export default function App() {
     }
     setStatus('processing')
     setError('')
+    setProcessingMsg('')
     try {
-      const data = await processDocument(file, apiKey)
+      const data = await processDocument(file, apiKey, setProcessingMsg)
       setDoc(data)
       setStatus('done')
     } catch (e) {
@@ -32,6 +34,7 @@ export default function App() {
     setStatus('idle')
     setDoc(null)
     setError('')
+    setProcessingMsg('')
   }
 
   return (
@@ -90,7 +93,9 @@ export default function App() {
           {status === 'processing' && (
             <div className="flex flex-col items-center justify-center py-28 gap-4 text-center">
               <div className="w-11 h-11 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-700 font-medium">מעבד את חומר ההרצאה...</p>
+              <p className="text-gray-700 font-medium">
+                {processingMsg || 'מעבד את חומר ההרצאה...'}
+              </p>
               <p className="text-sm text-gray-400">עשוי לקחת מספר שניות</p>
             </div>
           )}
