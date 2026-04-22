@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AcademicFlow is a prompt engineering project — no application code exists yet. The repo contains two AI system prompt definitions for a "Universal Academic Content Transformer" agent.
+acedemic-flow is a prompt engineering project — no application code exists yet. The repo contains two AI system prompt definitions for a "Universal Academic Content Transformer" agent.
 
 ### Core Concept
 
@@ -14,7 +14,7 @@ The agent ingests raw lecture materials (OCR text, PDFs, handwritten notes) in a
 
 - **`AGENTS.md`** — The agent role definition (KPI-structured, slightly higher-level framing).
 - **`the_system_prompt.md`** — The operational system prompt used at inference time (more prescriptive, includes the mandatory Planning Protocol pre-step and exact output schema).
-- **`superpowers/`** — A nested git repo (gstack superpowers toolkit). It is a dependency/toolset, not part of the AcademicFlow agent itself.
+- **`superpowers/`** — A nested git repo (gstack superpowers toolkit). It is a dependency/toolset, not part of the acedemic-flow agent itself.
 
 ## Output Schema
 
