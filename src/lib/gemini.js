@@ -28,8 +28,27 @@ function extractJSON(text) {
 }
 
 function isRetryable(error) {
+  if (error instanceof SyntaxError) return true
   const msg = error?.message || ''
   return msg.includes('503') || msg.includes('overloaded') || msg.includes('high demand')
+}
+
+function toUserMessage(error) {
+  const msg = error?.message || ''
+  if (msg.includes('גדול מדי')) return msg
+  if (msg.includes('401') || msg.includes('403') || msg.includes('API key')) {
+    return 'מפתח ה-API שגוי או פג תוקפו — בדוק את ההגדרות.'
+  }
+  if (msg.includes('503') || msg.includes('overloaded')) {
+    return 'שרת ה-AI עמוס כרגע — נסה שוב בעוד מספר דקות.'
+  }
+  if (error instanceof SyntaxError || msg.includes('JSON') || msg.includes('אינה JSON')) {
+    return 'הבינה המלאכותית החזירה תגובה שגויה לאחר מספר ניסיונות. נסה להעלות את הקובץ שוב.'
+  }
+  if (msg.includes('fetch') || msg.includes('network') || msg.includes('NetworkError')) {
+    return 'שגיאת רשת — בדוק את החיבור לאינטרנט ונסה שוב.'
+  }
+  return 'שגיאה בעיבוד הקובץ — נסה שוב.'
 }
 
 async function withRetry(fn) {
@@ -79,8 +98,12 @@ export async function processDocument(file, apiKey) {
 
   parts.push('נתח את חומר ההרצאה הזה ויצר מדריך למידה מובנה.')
 
-  return withRetry(async () => {
-    const result = await model.generateContent(parts)
-    return extractJSON(result.response.text())
-  })
+  try {
+    return await withRetry(async () => {
+      const result = await model.generateContent(parts)
+      return extractJSON(result.response.text())
+    })
+  } catch (e) {
+    throw new Error(toUserMessage(e))
+  }
 }
