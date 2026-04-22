@@ -25,6 +25,40 @@ function parseText(text) {
   return segments
 }
 
+function renderInline(text, keyPrefix) {
+  const parts = text.split(/(\*\*[^*]+?\*\*)/)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${keyPrefix}-b-${i}`}>{part.slice(2, -2)}</strong>
+    }
+    return <span key={`${keyPrefix}-t-${i}`}>{part}</span>
+  })
+}
+
+function renderTextSegment(text, segKey) {
+  const lines = text.split('\n')
+  const result = []
+
+  lines.forEach((line, lineIdx) => {
+    if (lineIdx > 0) {
+      result.push(<br key={`${segKey}-br-${lineIdx}`} />)
+    }
+
+    const bulletMatch = line.match(/^\*\s+(.+)$/)
+    if (bulletMatch) {
+      result.push(
+        <span key={`${segKey}-li-${lineIdx}`} className="doc-list-item">
+          {renderInline(bulletMatch[1], `${segKey}-${lineIdx}`)}
+        </span>
+      )
+    } else {
+      result.push(...renderInline(line, `${segKey}-${lineIdx}`))
+    }
+  })
+
+  return result
+}
+
 export default function MathText({ text }) {
   if (!text) return null
   const segments = parseText(text)
@@ -33,7 +67,7 @@ export default function MathText({ text }) {
     <>
       {segments.map((seg, i) => {
         if (seg.type === 'text') {
-          return <span key={i}>{seg.value}</span>
+          return <span key={i}>{renderTextSegment(seg.value, i)}</span>
         }
 
         const html = katex.renderToString(seg.value, {
@@ -44,11 +78,7 @@ export default function MathText({ text }) {
 
         if (seg.type === 'block') {
           return (
-            <div
-              key={i}
-              className="katex-display"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
+            <div key={i} className="math-block" dangerouslySetInnerHTML={{ __html: html }} />
           )
         }
 
