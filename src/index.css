@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Frank Ruhl Libre', 'Noto Serif Hebrew', serif;
+  background-color: #f3f4f6;
+}
+
+/* ── Academic Document ─────────────────────────────────────── */
+
+.academic-document {
+  font-family: 'Frank Ruhl Libre', 'Noto Serif Hebrew', serif;
+  direction: rtl;
+  text-align: right;
+  color: #111827;
+  line-height: 1.75;
+  background: white;
+}
+
+.doc-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.2rem;
+  letter-spacing: -0.01em;
+}
+
+.doc-subject {
+  font-size: 0.875rem;
+  text-align: center;
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.doc-divider {
+  border: none;
+  border-top: 2px solid #111827;
+  margin-bottom: 1.75rem;
+}
+
+.doc-section {
+  margin-bottom: 2.25rem;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.doc-section-header {
+  font-size: 1.15rem;
+  font-weight: 700;
+  border-bottom: 1px solid #d1d5db;
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.75rem;
+  color: #111827;
+}
+
+.doc-content {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+}
+
+.doc-box {
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+  border-radius: 4px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.doc-box-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+
+.doc-box-mistakes {
+  background-color: #fff5f5;
+  border-left: 4px solid #ef4444;
+}
+
+.doc-box-mistakes .doc-box-label {
+  color: #dc2626;
+}
+
+.doc-box-example {
+  background-color: #eff6ff;
+  border-left: 4px solid #3b82f6;
+}
+
+.doc-box-example .doc-box-label {
+  color: #2563eb;
+}
+
+/* KaTeX direction fix — formulas must be LTR */
+.katex,
+.katex-html {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.katex-display {
+  direction: ltr;
+  text-align: center;
+  margin: 0.85rem 0;
+  overflow-x: auto;
+}
+
+/* ── Print ─────────────────────────────────────────────────── */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .academic-document {
+    box-shadow: none;
+    max-width: none;
+    padding: 0;
+  }
+
+  @page {
+    size: A4;
+    margin: 20mm 25mm;
+  }
+}
