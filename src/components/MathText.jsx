@@ -1,91 +1,82 @@
 import katex from 'katex'
 
-function parseText(text) {
-  const segments = []
-  const regex = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g
+function renderKatex(formula, displayMode) {
+  return katex.renderToString(formula, { throwOnError: false, displayMode, output: 'html' })
+}
+
+// Single-pass tokenizer: handles $$block$$, $inline$, and **bold** in one scan
+function tokenize(text) {
+  const regex = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\*\*[^*]+?\*\*)/g
+  const parts = []
   let lastIndex = 0
   let match
 
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      segments.push({ type: 'text', value: text.slice(lastIndex, match.index) })
+      parts.push({ type: 'text', value: text.slice(lastIndex, match.index) })
     }
-    const isBlock = match[0].startsWith('$$')
-    const formula = isBlock
-      ? match[0].slice(2, -2).trim()
-      : match[0].slice(1, -1).trim()
-    segments.push({ type: isBlock ? 'block' : 'inline', value: formula })
-    lastIndex = match.index + match[0].length
+    const token = match[0]
+    if (token.startsWith('**')) {
+      parts.push({ type: 'bold', value: token.slice(2, -2) })
+    } else if (token.startsWith('$$')) {
+      parts.push({ type: 'block', value: token.slice(2, -2).trim() })
+    } else {
+      parts.push({ type: 'inline', value: token.slice(1, -1).trim() })
+    }
+    lastIndex = match.index + token.length
   }
 
   if (lastIndex < text.length) {
-    segments.push({ type: 'text', value: text.slice(lastIndex) })
+    parts.push({ type: 'text', value: text.slice(lastIndex) })
   }
 
-  return segments
+  return parts
 }
 
-function renderInline(text, keyPrefix) {
-  const parts = text.split(/(\*\*[^*]+?\*\*)/)
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={`${keyPrefix}-b-${i}`}>{part.slice(2, -2)}</strong>
-    }
-    return <span key={`${keyPrefix}-t-${i}`}>{part}</span>
-  })
-}
-
-function renderTextSegment(text, segKey) {
-  const lines = text.split('\n')
-  const result = []
-
-  lines.forEach((line, lineIdx) => {
-    if (lineIdx > 0) {
-      result.push(<br key={`${segKey}-br-${lineIdx}`} />)
-    }
-
-    const bulletMatch = line.match(/^\*\s+(.+)$/)
-    if (bulletMatch) {
-      result.push(
-        <span key={`${segKey}-li-${lineIdx}`} className="doc-list-item">
-          {renderInline(bulletMatch[1], `${segKey}-${lineIdx}`)}
-        </span>
+function renderPart(part, key) {
+  switch (part.type) {
+    case 'text':
+      return <span key={key}>{part.value}</span>
+    case 'bold':
+      // Bold content may itself contain inline LaTeX — recurse
+      return (
+        <strong key={key}>
+          {tokenize(part.value).map((p, i) => renderPart(p, `${key}-${i}`))}
+        </strong>
       )
-    } else {
-      result.push(...renderInline(line, `${segKey}-${lineIdx}`))
-    }
-  })
-
-  return result
+    case 'inline':
+      return <span key={key} dangerouslySetInnerHTML={{ __html: renderKatex(part.value, false) }} />
+    case 'block':
+      return <div key={key} className="math-block" dangerouslySetInnerHTML={{ __html: renderKatex(part.value, true) }} />
+    default:
+      return null
+  }
 }
 
 export default function MathText({ text }) {
   if (!text) return null
-  const segments = parseText(text)
 
-  return (
-    <>
-      {segments.map((seg, i) => {
-        if (seg.type === 'text') {
-          return <span key={i}>{renderTextSegment(seg.value, i)}</span>
-        }
+  const lines = text.split('\n')
+  const result = []
 
-        const html = katex.renderToString(seg.value, {
-          throwOnError: false,
-          displayMode: seg.type === 'block',
-          output: 'html',
-        })
+  lines.forEach((line, lineIdx) => {
+    if (lineIdx > 0) result.push(<br key={`br-${lineIdx}`} />)
 
-        if (seg.type === 'block') {
-          return (
-            <div key={i} className="math-block" dangerouslySetInnerHTML={{ __html: html }} />
-          )
-        }
+    const bulletMatch = line.match(/^\*\s+([\s\S]+)$/)
+    const content = bulletMatch ? bulletMatch[1] : line
+    const parts = tokenize(content)
+    const rendered = parts.map((p, i) => renderPart(p, `${lineIdx}-${i}`))
 
-        return (
-          <span key={i} dangerouslySetInnerHTML={{ __html: html }} />
-        )
-      })}
-    </>
-  )
+    if (bulletMatch) {
+      result.push(
+        <span key={`li-${lineIdx}`} className="doc-list-item">
+          {rendered}
+        </span>
+      )
+    } else {
+      result.push(...rendered)
+    }
+  })
+
+  return <>{result}</>
 }
