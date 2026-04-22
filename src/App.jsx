@@ -3,6 +3,7 @@ import FileUpload from './components/FileUpload.jsx'
 import Settings, { getApiKey } from './components/Settings.jsx'
 import AcademicDocument from './components/AcademicDocument.jsx'
 import { processDocument } from './lib/gemini.js'
+import { version } from '../package.json'
 
 export default function App() {
   const [status, setStatus] = useState('idle') // idle | processing | done | error
@@ -42,7 +43,10 @@ export default function App() {
 
       {/* ── Header (hidden on print) ── */}
       <header className="no-print bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-        <span className="font-bold text-gray-900 text-lg tracking-tight">Academic Flow</span>
+        <span className="font-bold text-gray-900 text-lg tracking-tight">
+          Academic Flow
+          <span className="text-xs font-normal text-gray-400 mr-2">v{version}</span>
+        </span>
         <div className="flex items-center gap-2">
           {status === 'done' && (
             <>
