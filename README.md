@@ -1,81 +1,32 @@
-# acedemic-flow
+# Academic Flow
 
-AI-powered academic content transformer — converts raw lecture materials (PDFs, OCR, handwritten notes) into structured Hebrew study guides with LaTeX math rendering and RTL support.
+This repository is intentionally split into two layers:
 
-## What It Does
+- `app/` holds the actual web product and its runtime assets.
+- The repo root holds AI operating files, agent tooling, and structure docs.
 
-Paste or upload lecture content in any academic discipline. acedemic-flow sends it through a structured AI pipeline and returns a clean, pedagogically enriched study guide — in Hebrew, with proper LaTeX typesetting for mathematical notation.
+## Work In The Right Place
 
-**Output per section:**
-
-- Refined Hebrew explanation
-- Common mistakes and pitfalls
-- Step-by-step solved example
-
-**Built-in KPIs** (e.g. sampling distribution formula always surfaces when relevant):
-
-$$Z = \frac{\bar{x} - \mu}{\sigma / \sqrt{n}}$$
-
-## Tech Stack
-
-- **Frontend**: React + Vite + Tailwind CSS
-- **AI**: Google Gemini API
-- **Math rendering**: KaTeX / LaTeX inline and block syntax
-- **Language**: Hebrew (RTL) with English/LaTeX mixed safely
-
-## Project Structure
-
-```text
-acedemic-flow/
-├── src/
-│   ├── components/       # UI components (FileUpload, MathText, Settings, AcademicDocument)
-│   ├── lib/gemini.js     # Gemini API integration
-│   ├── App.jsx
-│   └── main.jsx
-├── examples/             # Sample PDFs for testing
-├── AGENTS.md             # Agent role definition (KPI-structured)
-├── the_system_prompt.md  # Runtime system prompt used at inference
-└── CLAUDE.md             # Claude Code project instructions
-```
-
-## Getting Started
+If you are building or debugging the site, work inside `app/`.
 
 ```bash
+cd app
 npm install
 npm run dev
 ```
 
-Set your Gemini API key in the settings panel before use.
+If you are editing agent workflows or repo instructions, work at the root.
 
-## System Prompt Architecture
+## Top-Level Layout
 
-The AI pipeline is defined in two files:
-
-- **`the_system_prompt.md`** — the authoritative runtime prompt. Includes the mandatory Planning Protocol pre-step and exact JSON output schema.
-- **`AGENTS.md`** — the agent card / role spec. Keep consistent with the system prompt when updating either.
-
-### Planning Protocol (mandatory pre-step)
-
-Before generating output, the agent runs:
-
-1. Subject identification
-2. Core essence extraction
-3. Structure mapping
-4. Pitfall identification
-
-### Output Schema
-
-```json
-{
-  "title": "Clean Academic Title (Hebrew)",
-  "subject_meta": "The identified field",
-  "sections": [
-    {
-      "header": "Section Heading (Hebrew)",
-      "content": "Refined Hebrew explanation with $LaTeX$",
-      "common_mistakes": "Pitfalls (Hebrew + LaTeX)",
-      "example": "Solved step-by-step example (Hebrew + LaTeX)"
-    }
-  ]
-}
+```text
+academic-flow/
+├── app/              # Product code, prompt, config, examples, dependencies
+├── .claude/          # Claude local state/worktrees
+├── ai-agents/        # External agent/tooling bundles
+├── docs/             # Repo structure and decisions
+├── skills/           # Project-local reusable skills
+├── AGENTS.md         # Project rules for coding agents
+├── CLAUDE.md         # Claude-facing shorthand
+└── LICENSE
 ```

@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import systemPromptText from '../../the_system_prompt.md?raw'
+import systemPromptText from '../../prompts/academic-flow.system.md?raw'
 
 const DEFAULT_MODEL = 'gemini-2.5-flash'
 const RETRIES = 3
