@@ -4,27 +4,86 @@ import Settings, { getApiKey } from './components/Settings.jsx'
 import AcademicDocument from './components/AcademicDocument.jsx'
 import RenderDebugger from './components/RenderDebugger.jsx'
 import { processDocument } from './lib/gemini.js'
+import { parsePageSelection } from './lib/pageSelection.js'
+import { getPdfPageCount, isPdfFile } from './lib/pdfText.js'
 import { version } from '../package.json'
 
 export default function App() {
   const [status, setStatus] = useState('idle') // idle | processing | done | error
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState('')
-  const [processingMsg, setProcessingMsg] = useState('')
+  const [attemptLogs, setAttemptLogs] = useState([])
+  const [auditSummary, setAuditSummary] = useState([])
   const [showSettings, setShowSettings] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [pageCount, setPageCount] = useState(null)
+  const [loadingFileMeta, setLoadingFileMeta] = useState(false)
+  const [useCustomPages, setUseCustomPages] = useState(false)
+  const [pageSelectionInput, setPageSelectionInput] = useState('')
+  const [selectionError, setSelectionError] = useState('')
 
   const handleFile = async (file) => {
+    setStatus('idle')
+    setSelectedFile(file)
+    setDoc(null)
+    setError('')
+    setAttemptLogs([])
+    setAuditSummary([])
+    setSelectionError('')
+    setUseCustomPages(false)
+    setPageSelectionInput('')
+
+    if (!isPdfFile(file)) {
+      setPageCount(null)
+      return
+    }
+
+    setLoadingFileMeta(true)
+    try {
+      const count = await getPdfPageCount(file)
+      setPageCount(count)
+      setPageSelectionInput(`1-${count}`)
+    } catch (e) {
+      setSelectedFile(null)
+      setPageCount(null)
+      setError('לא ניתן לקרוא את קובץ ה-PDF הזה.')
+      setStatus('error')
+    } finally {
+      setLoadingFileMeta(false)
+    }
+  }
+
+  const handleProcess = async () => {
+    if (!selectedFile) return
+
     const apiKey = getApiKey()
     if (!apiKey) {
       setShowSettings(true)
       return
     }
+
+    let pageNumbers = null
+    if (isPdfFile(selectedFile) && useCustomPages) {
+      try {
+        pageNumbers = parsePageSelection(pageSelectionInput, pageCount)
+        setSelectionError('')
+      } catch (e) {
+        setSelectionError(e.message)
+        return
+      }
+    }
+
     setStatus('processing')
     setError('')
-    setProcessingMsg('')
+    setAttemptLogs([])
+    setAuditSummary([])
     try {
-      const data = await processDocument(file, apiKey, setProcessingMsg)
+      const data = await processDocument(selectedFile, apiKey, {
+        onStatus: (line) => setAttemptLogs(prev => [...prev, line]),
+        onAudit: (summary) => setAuditSummary(summary),
+        pageNumbers,
+      })
       setDoc(data)
       setStatus('done')
     } catch (e) {
@@ -37,7 +96,14 @@ export default function App() {
     setStatus('idle')
     setDoc(null)
     setError('')
-    setProcessingMsg('')
+    setAttemptLogs([])
+    setAuditSummary([])
+    setSelectedFile(null)
+    setPageCount(null)
+    setLoadingFileMeta(false)
+    setUseCustomPages(false)
+    setPageSelectionInput('')
+    setSelectionError('')
   }
 
   return (
@@ -111,16 +177,127 @@ export default function App() {
                 </div>
               )}
               <FileUpload onFile={handleFile} />
+              {loadingFileMeta && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
+                  בודק את מבנה ה-PDF...
+                </div>
+              )}
+              {selectedFile && !loadingFileMeta && (
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Selected File</p>
+                      <h2 className="mt-1 text-lg font-semibold text-slate-900">{selectedFile.name}</h2>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {isPdfFile(selectedFile) && pageCount
+                          ? `${pageCount} עמודים זמינים לבחירה`
+                          : 'הקובץ יישלח כפי שהוא'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={reset}
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-50"
+                    >
+                      החלף קובץ
+                    </button>
+                  </div>
+
+                  {isPdfFile(selectedFile) && pageCount && (
+                    <div className="rounded-2xl bg-slate-50 p-4 space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseCustomPages(false)
+                            setSelectionError('')
+                          }}
+                          className={`rounded-full px-4 py-2 text-sm transition-colors ${
+                            !useCustomPages
+                              ? 'bg-slate-900 text-white'
+                              : 'bg-white text-slate-600 border border-slate-200'
+                          }`}
+                        >
+                          כל העמודים
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseCustomPages(true)
+                            setSelectionError('')
+                          }}
+                          className={`rounded-full px-4 py-2 text-sm transition-colors ${
+                            useCustomPages
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white text-slate-600 border border-slate-200'
+                          }`}
+                        >
+                          בחירה ידנית
+                        </button>
+                      </div>
+
+                      {useCustomPages && (
+                        <div className="space-y-2">
+                          <label className="block text-sm font-medium text-slate-700">
+                            אילו עמודים לשלוח ל-Gemini
+                          </label>
+                          <input
+                            value={pageSelectionInput}
+                            onChange={(e) => {
+                              setPageSelectionInput(e.target.value)
+                              setSelectionError('')
+                            }}
+                            dir="ltr"
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                            placeholder="למשל: 7 או 7-9 או 3,5,11"
+                          />
+                          <p className="text-xs text-slate-500">
+                            תומך בעמוד בודד, טווח, או רשימה. לדוגמה: <span dir="ltr">4</span>, <span dir="ltr">4-6</span>, <span dir="ltr">2,4,9</span>
+                          </p>
+                          {selectionError && (
+                            <p className="text-sm text-red-600">{selectionError}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                    <p className="text-sm text-slate-500">
+                      {isPdfFile(selectedFile)
+                        ? 'אפשר לבחור עמודים ספציפיים כדי לדבג קטע נקודתי בלי לשלוח את כל המסמך.'
+                        : 'לקבצים שאינם PDF אין בחירת עמודים.'}
+                    </p>
+                    <button
+                      onClick={handleProcess}
+                      className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                    >
+                      עבד את הקובץ
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {status === 'processing' && (
             <div className="flex flex-col items-center justify-center py-28 gap-4 text-center">
               <div className="w-11 h-11 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-700 font-medium">
-                {processingMsg || 'מעבד את חומר ההרצאה...'}
-              </p>
+              <p className="text-gray-700 font-medium">מעבד את חומר ההרצאה...</p>
               <p className="text-sm text-gray-400">עשוי לקחת מספר שניות</p>
+              {attemptLogs.length > 0 && (
+                <div className="mt-4 w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-4 text-right shadow-sm">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+                    Pipeline Telemetry
+                  </p>
+                  <div className="space-y-1">
+                    {attemptLogs.map((line, index) => (
+                      <div key={`${line}-${index}`} className="font-mono text-xs text-slate-600">
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -142,7 +319,7 @@ export default function App() {
       {/* ── Academic Document (visible on screen + print) ── */}
       {!debugMode && status === 'done' && doc && (
         <div className="max-w-[860px] mx-auto px-4 py-8 print:p-0 print:max-w-none">
-          <AcademicDocument data={doc} />
+          <AcademicDocument data={doc} auditSummary={auditSummary} />
         </div>
       )}
 

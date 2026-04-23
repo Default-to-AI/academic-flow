@@ -1,12 +1,22 @@
 import MathText from './MathText.jsx'
 
-export default function AcademicDocument({ data }) {
+export default function AcademicDocument({ data, auditSummary = [] }) {
   return (
     <article className="academic-document bg-white max-w-[794px] mx-auto px-14 py-12 shadow-sm print:shadow-none print:px-0 print:py-0">
       <header>
         <h1 className="doc-title">{data.title}</h1>
         {data.subject_meta && (
           <p className="doc-subject">{data.subject_meta}</p>
+        )}
+        {auditSummary.length > 0 && (
+          <aside className="doc-audit-banner">
+            <strong>Integrity checks</strong>
+            <div className="doc-audit-list">
+              {auditSummary.map((item) => (
+                <div key={item}>{item}</div>
+              ))}
+            </div>
+          </aside>
         )}
         <hr className="doc-divider" />
       </header>

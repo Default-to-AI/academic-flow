@@ -1,39 +1,26 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import systemPromptText from '../../prompts/academic-flow.system.md?raw'
+import { extractPdfPages, isPdfFile, renderPdfPageImages } from './pdfText'
+import { buildProcessingState, auditPipelineOutput, processSections } from './processPipeline'
+import { buildSectionInputs, buildSourceOutline } from './sourceOutline'
 
 const DEFAULT_MODEL = 'gemini-2.5-flash'
-const RETRIES = 3
-const RETRY_DELAY_MS = 2500
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result.split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-// Fix invalid LaTeX backslashes before JSON.parse (e.g. \sigma → \\sigma)
 function fixBackslashes(text) {
   return text.replace(/\\([^"\\\/bfnrtu\d])/g, '\\\\$1')
 }
 
 function extractJSON(text) {
-  // Pass 1: direct parse
   try { return JSON.parse(text) } catch {}
 
-  // Pass 2: fix LaTeX backslashes, try again
   try { return JSON.parse(fixBackslashes(text)) } catch {}
 
-  // Pass 3: extract from markdown fences
   const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
   if (fenced) {
     try { return JSON.parse(fenced[1]) } catch {}
     try { return JSON.parse(fixBackslashes(fenced[1])) } catch {}
   }
 
-  // Pass 4: extract raw JSON object
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start !== -1 && end !== -1) {
@@ -47,23 +34,150 @@ function extractJSON(text) {
 
 function sanitizeField(str) {
   return str
-    .replace(/<[^>]+>/g, '')  // strip HTML tags the model shouldn't output (<br>, <b>, etc.)
-    .replace(/\\\\/g, '\n')   // LaTeX \\ line break → actual newline for MathText
+    .replace(/<[^>]+>/g, '')
     .trim()
 }
 
-function sanitize(obj) {
-  if (typeof obj === 'string') return sanitizeField(obj)
-  if (Array.isArray(obj)) return obj.map(sanitize)
-  if (obj && typeof obj === 'object')
-    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, sanitize(v)]))
-  return obj
+function sanitize(value) {
+  if (typeof value === 'string') return sanitizeField(value)
+  if (Array.isArray(value)) return value.map(sanitize)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, nested]) => [key, sanitize(nested)]))
+  }
+  return value
 }
 
-function isRetryable(error) {
-  if (error instanceof SyntaxError) return true
-  const msg = error?.message || ''
-  return msg.includes('503') || msg.includes('overloaded') || msg.includes('high demand')
+function normalizeWhitespace(text) {
+  return (text || '').replace(/\r/g, '').trim()
+}
+
+export function normalizeModelText(text) {
+  let normalized = normalizeWhitespace(text)
+
+  normalized = normalized
+    .replace(/\\\[/g, '$$')
+    .replace(/\\\]/g, '$$')
+    .replace(/\\\(/g, '$')
+    .replace(/\\\)/g, '$')
+    .replace(/\\begin\{align\*?\}/g, '\\begin{aligned}')
+    .replace(/\\end\{align\*?\}/g, '\\end{aligned}')
+
+  normalized = normalized.replace(
+    /\$\$\s*\\begin\{aligned\}([\s\S]*?)\$\$\s*\\end\{aligned\}\s*\$\$/g,
+    (_, body) => `$$\n\\begin{aligned}${body}\\end{aligned}\n$$`,
+  )
+
+  normalized = normalized.replace(
+    /(^|[\n\r])\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}($|[\n\r])/g,
+    (_, start, body, end) => `${start}$$\n\\begin{aligned}${body}\\end{aligned}\n$$${end}`,
+  )
+
+  normalized = normalized
+    .replace(/\$\$\s*\n+/g, '$$\n')
+    .replace(/\n+\s*\$\$/g, '\n$$')
+    .replace(/\$\$\s*\$\$/g, '$$')
+
+  return normalized.trim()
+}
+
+function getFallbackOutline(pages, fileName) {
+  const firstLine = pages
+    .flatMap(page => page.split('\n'))
+    .map(line => normalizeWhitespace(line))
+    .find(Boolean)
+
+  const title = firstLine || fileName.replace(/\.[^.]+$/, '')
+  const outline = [{ id: 'h1-1', level: 'H1', text: title, page: 1 }]
+
+  pages.forEach((page, index) => {
+    outline.push({
+      id: `h2-${index + 1}`,
+      level: 'H2',
+      text: index === 0 ? title : `עמוד ${index + 1}`,
+      page: index + 1,
+    })
+  })
+
+  return outline
+}
+
+function getTitleFromOutline(outline, fileName) {
+  const h1 = outline.find(item => item.level === 'H1')
+  return h1?.text || fileName.replace(/\.[^.]+$/, '')
+}
+
+function buildSelectedPageInputs(pages, pageNumbers) {
+  return pageNumbers.map((pageNumber) => ({
+    id: `page-${pageNumber}`,
+    level: 'H2',
+    heading: `עמוד ${pageNumber}`,
+    page: pageNumber,
+    sourceText: pages[pageNumber - 1] || '',
+  }))
+}
+
+async function extractSourcePages(file) {
+  if (isPdfFile(file)) {
+    return extractPdfPages(file)
+  }
+
+  const text = await file.text()
+  return text
+    .split(/\f+/)
+    .map(page => normalizeWhitespace(page))
+    .filter(Boolean)
+}
+
+function buildDocumentPrompt(section, attempt, mode = 'outline') {
+  const scopeNote = mode === 'page'
+    ? 'זהו עמוד PDF יחיד שנשלח למטרת דיבוג. הסתמך על התמונה המצורפת קודם, והשתמש בטקסט רק כעזר.'
+    : 'זהו מקטע שנגזר ממבנה המסמך.'
+
+  return `
+הפק קטע לימוד יחיד בפורמט JSON תקין בלבד.
+
+הקשר:
+${scopeNote}
+
+כותרת מקור מחייבת:
+${section.heading}
+
+רמת כותרת:
+${section.level}
+
+מספר ניסיון:
+${attempt}
+
+טקסט המקור למקטע:
+${section.sourceText}
+
+החזר אובייקט JSON יחיד בצורה:
+{
+  "header": "חייב להיות זהה בדיוק לכותרת המקור",
+  "content": "הסבר עברי פורמלי, קריא, סריק, עם נוסחאות מתוחמות היטב",
+  "common_mistakes": "טעויות נפוצות",
+  "example": "דוגמה פתורה"
+}
+
+חוקים קשיחים:
+- header חייב להיות בדיוק "${section.heading}"
+- אין להמציא כותרת חדשה
+- אין להשאיר אף שדה ריק
+- כל LaTeX חייב להופיע בתוך $...$ או $$...$$ בלבד
+- אין לחשוף \\begin, \\frac, \\sqrt או פקודות אחרות מחוץ לתוחמי מתמטיקה
+- אם צורפה תמונת עמוד, היא מקור האמת למבנה המתמטי והטיפוגרפי
+`.trim()
+}
+
+function normalizeSectionPayload(payload, section) {
+  const candidate = payload?.sections?.[0] || payload
+
+  return {
+    header: section.heading,
+    content: normalizeModelText(candidate?.content),
+    common_mistakes: normalizeModelText(candidate?.common_mistakes),
+    example: normalizeModelText(candidate?.example),
+  }
 }
 
 function toUserMessage(error) {
@@ -75,6 +189,9 @@ function toUserMessage(error) {
   if (msg.includes('503') || msg.includes('overloaded')) {
     return 'שרת ה-AI עמוס כרגע — נסה שוב בעוד מספר דקות.'
   }
+  if (msg.includes('Section failed validation')) {
+    return 'חלק מהמסמך נכשל בבדיקות שלמות או נוסחאות. נסה שוב לאחר תיקון ההגדרות או הקובץ.'
+  }
   if (error instanceof SyntaxError || msg.includes('JSON') || msg.includes('אינה JSON')) {
     return 'הבינה המלאכותית החזירה תגובה שגויה לאחר מספר ניסיונות. נסה להעלות את הקובץ שוב.'
   }
@@ -84,60 +201,96 @@ function toUserMessage(error) {
   return 'שגיאה בעיבוד הקובץ — נסה שוב.'
 }
 
-async function withRetry(fn, onStatus) {
-  let lastError
-  for (let attempt = 1; attempt <= RETRIES; attempt++) {
-    if (attempt > 1) {
-      onStatus(`ניסיון ${attempt} מתוך ${RETRIES} — מנסה שוב...`)
-      await new Promise(r => setTimeout(r, RETRY_DELAY_MS * (attempt - 1)))
-    }
-    try {
-      return await fn(attempt)
-    } catch (e) {
-      lastError = e
-      if (attempt < RETRIES && isRetryable(e)) continue
-      throw e
-    }
-  }
-  throw lastError
-}
-
 export function getModel() {
   return localStorage.getItem('academicflow_model') || DEFAULT_MODEL
 }
 
-export async function processDocument(file, apiKey, onStatus = () => {}) {
+export async function processDocument(file, apiKey, options = {}) {
+  const {
+    onStatus = () => {},
+    onAudit = () => {},
+    pageNumbers = null,
+  } = options
+
   if (file.size > 20 * 1024 * 1024) {
     throw new Error('הקובץ גדול מדי — מקסימום 20MB')
   }
 
-  onStatus('מכין את הקובץ...')
-
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: getModel(),
-    systemInstruction: systemPromptText,
-    generationConfig: { responseMimeType: 'application/json' },
-  })
-
-  let parts
-  if (file.type === 'text/plain') {
-    const text = await file.text()
-    parts = [text]
-  } else {
-    const base64 = await fileToBase64(file)
-    parts = [{ inlineData: { data: base64, mimeType: file.type } }]
+  const attemptLogs = []
+  const pushStatus = (line) => {
+    attemptLogs.push(line)
+    onStatus(line)
   }
-  parts.push('נתח את חומר ההרצאה הזה ויצר מדריך למידה מובנה.')
 
   try {
-    return await withRetry(async () => {
-      onStatus('שולח לבינה המלאכותית...')
-      const result = await model.generateContent(parts)
-      onStatus('מעבד את התגובה...')
-      return sanitize(extractJSON(result.response.text()))
-    }, onStatus)
-  } catch (e) {
-    throw new Error(toUserMessage(e))
+    const extractedPages = await extractSourcePages(file)
+    const pages = Array.isArray(pageNumbers) && pageNumbers.length > 0
+      ? pageNumbers.map(pageNumber => extractedPages[pageNumber - 1] || '').filter(Boolean)
+      : extractedPages
+    const usingSelectedPdfPages = isPdfFile(file) && Array.isArray(pageNumbers) && pageNumbers.length > 0
+    const outline = usingSelectedPdfPages ? [] : buildSourceOutline(pages)
+    const effectiveOutline = usingSelectedPdfPages
+      ? [{ id: 'h1-1', level: 'H1', text: `${file.name} — עמודים ${pageNumbers.join(', ')}`, page: 1 }]
+      : (outline.length > 0 ? outline : getFallbackOutline(pages, file.name))
+    const title = getTitleFromOutline(effectiveOutline, file.name)
+    const contentOutline = effectiveOutline.filter(item => item.level !== 'H1')
+    const sectionInputs = usingSelectedPdfPages
+      ? buildSelectedPageInputs(extractedPages, pageNumbers)
+      : buildSectionInputs(pages, contentOutline.length > 0 ? contentOutline : effectiveOutline)
+    const renderedPageImages = usingSelectedPdfPages
+      ? await renderPdfPageImages(file, pageNumbers)
+      : []
+    const renderedPageImageMap = new Map(renderedPageImages.map(image => [image.pageNumber, image]))
+
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({
+      model: getModel(),
+      systemInstruction: systemPromptText,
+      generationConfig: { responseMimeType: 'application/json' },
+    })
+
+    const sections = await processSections({
+      sections: sectionInputs,
+      onStatus: pushStatus,
+      generateSection: async (section, attempt) => {
+        const pageImage = renderedPageImageMap.get(section.page)
+        const parts = [buildDocumentPrompt(section, attempt, usingSelectedPdfPages ? 'page' : 'outline')]
+
+        if (pageImage) {
+          parts.unshift({
+            inlineData: {
+              mimeType: pageImage.mimeType,
+              data: pageImage.data,
+            },
+          })
+        }
+
+        const result = await model.generateContent(parts)
+        const payload = sanitize(extractJSON(result.response.text()))
+        return normalizeSectionPayload(payload, section)
+      },
+    })
+
+    const generated = {
+      title,
+      subject_meta: '',
+      sections,
+    }
+
+    const audit = auditPipelineOutput({
+      outline: effectiveOutline,
+      generated,
+    })
+
+    const processingState = buildProcessingState({
+      attempts: attemptLogs,
+      audit,
+    })
+
+    onAudit(processingState.auditSummary)
+
+    return generated
+  } catch (error) {
+    throw new Error(toUserMessage(error))
   }
 }
