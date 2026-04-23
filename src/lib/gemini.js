@@ -14,17 +14,35 @@ function fileToBase64(file) {
   })
 }
 
+// Fix invalid LaTeX backslashes before JSON.parse (e.g. \sigma → \\sigma)
+function fixBackslashes(text) {
+  return text.replace(/\\([^"\\\/bfnrtu\d])/g, '\\\\$1')
+}
+
 function extractJSON(text) {
-  try {
-    return JSON.parse(text)
-  } catch {
-    const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
-    if (fenced) return JSON.parse(fenced[1])
-    const start = text.indexOf('{')
-    const end = text.lastIndexOf('}')
-    if (start !== -1 && end !== -1) return JSON.parse(text.slice(start, end + 1))
-    throw new Error('התגובה מה-API אינה JSON תקין')
+  // Pass 1: direct parse
+  try { return JSON.parse(text) } catch {}
+
+  // Pass 2: fix LaTeX backslashes, try again
+  try { return JSON.parse(fixBackslashes(text)) } catch {}
+
+  // Pass 3: extract from markdown fences
+  const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
+  if (fenced) {
+    try { return JSON.parse(fenced[1]) } catch {}
+    try { return JSON.parse(fixBackslashes(fenced[1])) } catch {}
   }
+
+  // Pass 4: extract raw JSON object
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start !== -1 && end !== -1) {
+    const slice = text.slice(start, end + 1)
+    try { return JSON.parse(slice) } catch {}
+    try { return JSON.parse(fixBackslashes(slice)) } catch {}
+  }
+
+  throw new Error('התגובה מה-API אינה JSON תקין')
 }
 
 function isRetryable(error) {
@@ -51,17 +69,18 @@ function toUserMessage(error) {
   return 'שגיאה בעיבוד הקובץ — נסה שוב.'
 }
 
-async function withRetry(fn) {
+async function withRetry(fn, onStatus) {
   let lastError
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
+    if (attempt > 1) {
+      onStatus(`ניסיון ${attempt} מתוך ${RETRIES} — מנסה שוב...`)
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS * (attempt - 1)))
+    }
     try {
-      return await fn()
+      return await fn(attempt)
     } catch (e) {
       lastError = e
-      if (attempt < RETRIES && isRetryable(e)) {
-        await new Promise(r => setTimeout(r, RETRY_DELAY_MS * attempt))
-        continue
-      }
+      if (attempt < RETRIES && isRetryable(e)) continue
       throw e
     }
   }
@@ -72,22 +91,21 @@ export function getModel() {
   return localStorage.getItem('academicflow_model') || DEFAULT_MODEL
 }
 
-export async function processDocument(file, apiKey) {
+export async function processDocument(file, apiKey, onStatus = () => {}) {
   if (file.size > 20 * 1024 * 1024) {
     throw new Error('הקובץ גדול מדי — מקסימום 20MB')
   }
+
+  onStatus('מכין את הקובץ...')
 
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     model: getModel(),
     systemInstruction: systemPromptText,
-    generationConfig: {
-      responseMimeType: 'application/json',
-    },
+    generationConfig: { responseMimeType: 'application/json' },
   })
 
   let parts
-
   if (file.type === 'text/plain') {
     const text = await file.text()
     parts = [text]
@@ -95,14 +113,15 @@ export async function processDocument(file, apiKey) {
     const base64 = await fileToBase64(file)
     parts = [{ inlineData: { data: base64, mimeType: file.type } }]
   }
-
   parts.push('נתח את חומר ההרצאה הזה ויצר מדריך למידה מובנה.')
 
   try {
     return await withRetry(async () => {
+      onStatus('שולח לבינה המלאכותית...')
       const result = await model.generateContent(parts)
+      onStatus('מעבד את התגובה...')
       return extractJSON(result.response.text())
-    })
+    }, onStatus)
   } catch (e) {
     throw new Error(toUserMessage(e))
   }
