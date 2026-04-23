@@ -30,10 +30,6 @@ Use for Claude local state and worktrees. This is tooling state, not product cod
 
 Use for external agent bundles, multi-agent toolkits, and imported AI operating systems.
 
-Current resident:
-
-- `ai-agents/superpowers/`
-
 ### `skills/`
 
 Use for project-local reusable skills only when the workflow repeats across sessions.
