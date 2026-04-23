@@ -1,5 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import systemPromptText from '../../prompts/academic-flow.system.md?raw'
+import {
+  formatValidationMessage,
+  normalizeAcademicDocument,
+  validateAcademicDocument,
+} from './math.js'
 
 const DEFAULT_MODEL = 'gemini-2.5-flash'
 const RETRIES = 3
@@ -48,7 +53,6 @@ function extractJSON(text) {
 function sanitizeField(str) {
   return str
     .replace(/<[^>]+>/g, '')  // strip HTML tags the model shouldn't output (<br>, <b>, etc.)
-    .replace(/\\\\/g, '\n')   // LaTeX \\ line break → actual newline for MathText
     .trim()
 }
 
@@ -68,6 +72,7 @@ function isRetryable(error) {
 
 function toUserMessage(error) {
   const msg = error?.message || ''
+  if (msg.includes('בדיקת רינדור מתמטי נכשלה')) return msg
   if (msg.includes('גדול מדי')) return msg
   if (msg.includes('401') || msg.includes('403') || msg.includes('API key')) {
     return 'מפתח ה-API שגוי או פג תוקפו — בדוק את ההגדרות.'
@@ -135,7 +140,16 @@ export async function processDocument(file, apiKey, onStatus = () => {}) {
       onStatus('שולח לבינה המלאכותית...')
       const result = await model.generateContent(parts)
       onStatus('מעבד את התגובה...')
-      return sanitize(extractJSON(result.response.text()))
+      const sanitized = sanitize(extractJSON(result.response.text()))
+      const normalized = normalizeAcademicDocument(sanitized)
+      onStatus('בודק תקינות רינדור מתמטי...')
+      const validation = validateAcademicDocument(normalized)
+
+      if (validation.errors.length > 0) {
+        throw new Error(formatValidationMessage(validation))
+      }
+
+      return { doc: normalized, validation }
     }, onStatus)
   } catch (e) {
     throw new Error(toUserMessage(e))

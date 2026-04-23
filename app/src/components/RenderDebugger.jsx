@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import MathText from './MathText.jsx'
+import { normalizeMathText, validateMathText } from '../lib/math.js'
 
 const REFERENCE = [
   { syntax: '**טקסט**',         label: 'מודגש (Bold)' },
@@ -52,6 +53,10 @@ const BOX_LABELS = {
 export default function RenderDebugger() {
   const [input, setInput] = useState(DEFAULT_INPUT)
   const [boxStyle, setBoxStyle] = useState('example')
+  const normalizedInput = normalizeMathText(input)
+  const issues = validateMathText(normalizedInput)
+  const errors = issues.filter((issue) => issue.severity === 'error')
+  const warnings = issues.filter((issue) => issue.severity === 'warning')
 
   return (
     <div className="max-w-[1200px] mx-auto px-6 py-8 space-y-5">
@@ -87,6 +92,25 @@ export default function RenderDebugger() {
             {label}
           </button>
         ))}
+      </div>
+
+      <div className={`rounded-xl border px-4 py-3 text-sm ${
+        errors.length
+          ? 'border-red-200 bg-red-50 text-red-800'
+          : warnings.length
+          ? 'border-amber-200 bg-amber-50 text-amber-800'
+          : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      }`}>
+        {errors.length > 0 && <p className="font-semibold">Math preflight failed</p>}
+        {errors.length === 0 && warnings.length > 0 && <p className="font-semibold">Math preflight warnings</p>}
+        {errors.length === 0 && warnings.length === 0 && <p className="font-semibold">Math preflight passed</p>}
+        {issues.length > 0 && (
+          <div className="mt-2 space-y-1 font-mono text-xs">
+            {issues.map((issue, index) => (
+              <p key={index}>{issue.severity.toUpperCase()}: {issue.message}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Editor + Preview */}

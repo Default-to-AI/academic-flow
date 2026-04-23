@@ -9,6 +9,7 @@ import { version } from '../package.json'
 export default function App() {
   const [status, setStatus] = useState('idle') // idle | processing | done | error
   const [doc, setDoc] = useState(null)
+  const [validation, setValidation] = useState(null)
   const [error, setError] = useState('')
   const [processingMsg, setProcessingMsg] = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -24,8 +25,9 @@ export default function App() {
     setError('')
     setProcessingMsg('')
     try {
-      const data = await processDocument(file, apiKey, setProcessingMsg)
-      setDoc(data)
+      const result = await processDocument(file, apiKey, setProcessingMsg)
+      setDoc(result.doc)
+      setValidation(result.validation)
       setStatus('done')
     } catch (e) {
       setError(e.message || 'שגיאה בעיבוד הקובץ')
@@ -36,6 +38,7 @@ export default function App() {
   const reset = () => {
     setStatus('idle')
     setDoc(null)
+    setValidation(null)
     setError('')
     setProcessingMsg('')
   }
@@ -50,6 +53,12 @@ export default function App() {
           <span className="text-xs font-normal text-gray-400 mr-2">v{version}</span>
         </span>
         <div className="flex items-center gap-2">
+          {status === 'done' && validation && (
+            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full">
+              math checked
+              {validation.warnings.length > 0 ? ` · ${validation.warnings.length} warning${validation.warnings.length > 1 ? 's' : ''}` : ''}
+            </span>
+          )}
           {status === 'done' && !debugMode && (
             <>
               <button

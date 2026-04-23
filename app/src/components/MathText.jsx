@@ -1,4 +1,5 @@
 import katex from 'katex'
+import { normalizeMathText } from '../lib/math.js'
 
 function renderKatex(formula, displayMode) {
   return katex.renderToString(formula, { throwOnError: false, displayMode, output: 'html' })
@@ -68,7 +69,7 @@ function isListLine(line) {
 export default function MathText({ text }) {
   if (!text) return null
 
-  const lines = text
+  const lines = normalizeMathText(text)
     .replace(/\\n(?![a-zA-Z])/g, '\n')
     .replace(/\n{3,}/g, '\n\n')  // collapse 3+ newlines to max 2
     .split('\n')
