@@ -39,6 +39,9 @@ Return ONLY a valid JSON object:
 * Mathematical Notation: Use LaTeX strictly.
   * Inline: $x^2$
   * Block: $$\frac{-b \pm \sqrt{b^2-4ac}}{2a}$$
+  * **CRITICAL — No Hebrew inside LaTeX delimiters**: Hebrew text must NEVER appear inside `$...$` or `$$...$$` blocks. Math mode strips spaces, so Hebrew words inside delimiters will be rendered as a single merged string with no spaces. Keep Hebrew text outside the delimiters at all times.
+  * WRONG: `$עבור לוגריתם טבעי: f(x,y) = \ln(G(x,y)), ונדרש G(x,y) > 0$`
+  * RIGHT: `עבור לוגריתם טבעי: $f(x,y) = \ln(G(x,y))$, ונדרש $G(x,y) > 0$`
 * RTL Integrity: Write in formal Academic Hebrew.
   * Use standard Israeli academic terminology.
   * Ensure English/LaTeX does not disrupt RTL flow.
