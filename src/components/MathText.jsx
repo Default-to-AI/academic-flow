@@ -56,7 +56,7 @@ function renderPart(part, key) {
 export default function MathText({ text }) {
   if (!text) return null
 
-  const lines = text.replace(/\\n/g, '\n').split('\n')
+  const lines = text.replace(/\\n(?![a-zA-Z])/g, '\n').split('\n')
   const result = []
 
   lines.forEach((line, lineIdx) => {
