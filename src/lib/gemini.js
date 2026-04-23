@@ -45,6 +45,21 @@ function extractJSON(text) {
   throw new Error('התגובה מה-API אינה JSON תקין')
 }
 
+function sanitizeField(str) {
+  return str
+    .replace(/<[^>]+>/g, '')  // strip HTML tags the model shouldn't output (<br>, <b>, etc.)
+    .replace(/\\\\/g, '\n')   // LaTeX \\ line break → actual newline for MathText
+    .trim()
+}
+
+function sanitize(obj) {
+  if (typeof obj === 'string') return sanitizeField(obj)
+  if (Array.isArray(obj)) return obj.map(sanitize)
+  if (obj && typeof obj === 'object')
+    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, sanitize(v)]))
+  return obj
+}
+
 function isRetryable(error) {
   if (error instanceof SyntaxError) return true
   const msg = error?.message || ''
@@ -120,7 +135,7 @@ export async function processDocument(file, apiKey, onStatus = () => {}) {
       onStatus('שולח לבינה המלאכותית...')
       const result = await model.generateContent(parts)
       onStatus('מעבד את התגובה...')
-      return extractJSON(result.response.text())
+      return sanitize(extractJSON(result.response.text()))
     }, onStatus)
   } catch (e) {
     throw new Error(toUserMessage(e))
