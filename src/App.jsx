@@ -2,6 +2,7 @@ import { useState } from 'react'
 import FileUpload from './components/FileUpload.jsx'
 import Settings, { getApiKey } from './components/Settings.jsx'
 import AcademicDocument from './components/AcademicDocument.jsx'
+import RenderDebugger from './components/RenderDebugger.jsx'
 import { processDocument } from './lib/gemini.js'
 import { version } from '../package.json'
 
@@ -11,6 +12,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [processingMsg, setProcessingMsg] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [debugMode, setDebugMode] = useState(false)
 
   const handleFile = async (file) => {
     const apiKey = getApiKey()
@@ -48,7 +50,7 @@ export default function App() {
           <span className="text-xs font-normal text-gray-400 mr-2">v{version}</span>
         </span>
         <div className="flex items-center gap-2">
-          {status === 'done' && (
+          {status === 'done' && !debugMode && (
             <>
               <button
                 onClick={reset}
@@ -65,6 +67,17 @@ export default function App() {
             </>
           )}
           <button
+            onClick={() => setDebugMode(d => !d)}
+            className={`text-sm px-3 py-1.5 rounded-lg transition-colors font-mono ${
+              debugMode
+                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                : 'text-gray-400 hover:bg-gray-100'
+            }`}
+            title="Debug Renderer"
+          >
+            {debugMode ? '← חזור' : 'debug'}
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 text-lg transition-colors"
             title="הגדרות"
@@ -74,8 +87,15 @@ export default function App() {
         </div>
       </header>
 
+      {/* ── Debug Panel ── */}
+      {debugMode && (
+        <div className="no-print">
+          <RenderDebugger />
+        </div>
+      )}
+
       {/* ── Upload / Processing / Error (hidden on print) ── */}
-      {status !== 'done' && (
+      {!debugMode && status !== 'done' && (
         <main className="no-print max-w-2xl mx-auto px-6 py-12">
           {status === 'idle' && (
             <div className="space-y-4">
@@ -120,7 +140,7 @@ export default function App() {
       )}
 
       {/* ── Academic Document (visible on screen + print) ── */}
-      {status === 'done' && doc && (
+      {!debugMode && status === 'done' && doc && (
         <div className="max-w-[860px] mx-auto px-4 py-8 print:p-0 print:max-w-none">
           <AcademicDocument data={doc} />
         </div>

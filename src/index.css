@@ -70,6 +70,10 @@ body {
   content: '• ';
 }
 
+.doc-list-item-indent {
+  padding-right: 2.8em;
+}
+
 .doc-box {
   padding: 1rem 1.25rem;
   margin-top: 0.75rem;
