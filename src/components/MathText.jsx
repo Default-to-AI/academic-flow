@@ -61,6 +61,10 @@ function renderPart(part, key) {
   }
 }
 
+function isListLine(line) {
+  return /^( {4,})?\*\s+/.test(line) || /^\d+[.)]\s+/.test(line)
+}
+
 export default function MathText({ text }) {
   if (!text) return null
 
@@ -72,12 +76,26 @@ export default function MathText({ text }) {
   const result = []
 
   lines.forEach((line, lineIdx) => {
-    if (lineIdx > 0) result.push(<br key={`br-${lineIdx}`} />)
+    const currIsList = isListLine(line)
+    const prevIsList = lineIdx > 0 && isListLine(lines[lineIdx - 1])
+
+    // <br> only between non-list lines — list items are display:block and handle their own line breaks
+    if (lineIdx > 0 && !currIsList && !prevIsList) {
+      result.push(<br key={`br-${lineIdx}`} />)
+    }
 
     const indentedMatch = line.match(/^( {4,})\*\s+([\s\S]+)$/)
     const bulletMatch = !indentedMatch && line.match(/^\*\s+([\s\S]+)$/)
+    const numberedMatch = !indentedMatch && !bulletMatch && line.match(/^(\d+)[.)]\s+([\s\S]+)$/)
 
-    const content = indentedMatch ? indentedMatch[2] : bulletMatch ? bulletMatch[1] : line
+    const content = indentedMatch
+      ? indentedMatch[2]
+      : bulletMatch
+      ? bulletMatch[1]
+      : numberedMatch
+      ? numberedMatch[2]
+      : line
+
     const parts = tokenize(content)
     const rendered = parts.map((p, i) => renderPart(p, `${lineIdx}-${i}`))
 
@@ -90,6 +108,12 @@ export default function MathText({ text }) {
     } else if (bulletMatch) {
       result.push(
         <span key={`li-${lineIdx}`} className="doc-list-item">
+          {rendered}
+        </span>
+      )
+    } else if (numberedMatch) {
+      result.push(
+        <span key={`li-num-${lineIdx}`} className="doc-list-item doc-list-item-numbered" data-n={numberedMatch[1]}>
           {rendered}
         </span>
       )

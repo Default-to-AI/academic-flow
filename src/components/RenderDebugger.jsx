@@ -7,7 +7,8 @@ const REFERENCE = [
   { syntax: '**__טקסט__**',     label: 'מודגש + קו תחתון' },
   { syntax: '$נוסחה$',          label: 'LaTeX inline' },
   { syntax: '$$נוסחה$$',        label: 'LaTeX block' },
-  { syntax: '* פריט',           label: 'פריט רשימה' },
+  { syntax: '* פריט',           label: 'פריט רשימה (bullets)' },
+  { syntax: '1. פריט',          label: 'פריט ממוספר' },
   { syntax: '    * פריט',       label: 'פריט מוזח (4 רווחים)' },
   { syntax: '3+ ירידות שורה',   label: 'מצטמצם ל-2 אוטומטית' },
 ]
@@ -30,7 +31,11 @@ const DEFAULT_INPUT = `**__מכנה:__**
 * פריט ראשון
 * פריט שני
     * תת-פריט מוזח
-    * תת-פריט נוסף`
+    * תת-פריט נוסף
+
+1. שלב ראשון
+2. שלב שני
+3. שלב שלישי`
 
 const BOX_STYLES = {
   none:     'bg-white border border-gray-200',
