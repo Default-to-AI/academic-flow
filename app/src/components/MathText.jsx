@@ -66,6 +66,10 @@ function isListLine(line) {
   return /^( {4,})?\*\s+/.test(line) || /^\d+[.)]\s+/.test(line)
 }
 
+function isRule(line) {
+  return /^---+$/.test(line.trim())
+}
+
 export default function MathText({ text }) {
   if (!text) return null
 
@@ -77,6 +81,11 @@ export default function MathText({ text }) {
   const result = []
 
   lines.forEach((line, lineIdx) => {
+    if (isRule(line)) {
+      result.push(<hr key={`hr-${lineIdx}`} className="doc-inline-divider" />)
+      return
+    }
+
     const currIsList = isListLine(line)
     const prevIsList = lineIdx > 0 && isListLine(lines[lineIdx - 1])
 

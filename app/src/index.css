@@ -39,6 +39,21 @@ body {
   margin-bottom: 1.75rem;
 }
 
+.doc-audit-banner {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(135deg, #eff6ff, #f8fafc);
+  color: #1d4ed8;
+  border-radius: 12px;
+}
+
+.doc-audit-list {
+  margin-top: 0.45rem;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
 .doc-section {
   margin-bottom: 2.25rem;
   page-break-inside: avoid;
@@ -57,6 +72,12 @@ body {
 .doc-content {
   font-size: 1rem;
   margin-bottom: 1rem;
+}
+
+.doc-inline-divider {
+  border: 0;
+  border-top: 1px solid #cbd5e1;
+  margin: 1rem 0;
 }
 
 .doc-list-item {

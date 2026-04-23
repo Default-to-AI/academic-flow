@@ -8,6 +8,7 @@ const REFERENCE = [
   { syntax: '**__טקסט__**',     label: 'מודגש + קו תחתון' },
   { syntax: '$נוסחה$',          label: 'LaTeX inline' },
   { syntax: '$$נוסחה$$',        label: 'LaTeX block' },
+  { syntax: '---',              label: 'קו הפרדה' },
   { syntax: '* פריט',           label: 'פריט רשימה (bullets)' },
   { syntax: '1. פריט',          label: 'פריט ממוספר' },
   { syntax: '    * פריט',       label: 'פריט מוזח (4 רווחים)' },
@@ -17,6 +18,8 @@ const REFERENCE = [
 const DEFAULT_INPUT = `**__מכנה:__**
 המכנה **אסור שיהיה שווה לאפס**.
 **לדוגמה:** עבור $Q(x,y)/P(x,y)$, נדרש $Q(x,y) \\neq 0$.
+
+---
 
 **__שורש מסדר זוגי:__**
 הביטוי **חייב** להיות **אי-שלילי**.
