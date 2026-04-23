@@ -39,6 +39,10 @@ Return ONLY a valid JSON object:
 * Mathematical Notation: Use LaTeX strictly.
   * Inline: $x^2$
   * Block: $$\frac{-b \pm \sqrt{b^2-4ac}}{2a}$$
+  * Never escape math delimiters. Write `$...$` and `$$...$$`, never `\$...\$`.
+  * Never leave raw LaTeX commands outside math delimiters. Expressions such as `\infty`, `\lim`, `\frac`, `\begin{cases}` must always be inside `$...$` or `$$...$$`.
+  * Any multi-line environment such as `\begin{cases}...\end{cases}` or aligned derivations must use block math `$$...$$`, not inline math.
+  * Use actual newlines for paragraph/list breaks. Do not use LaTeX `\\` outside math as a text formatting tool.
   * **CRITICAL — No Hebrew inside LaTeX delimiters**: Hebrew text must NEVER appear inside `$...$` or `$$...$$` blocks. Math mode strips spaces, so Hebrew words inside delimiters will be rendered as a single merged string with no spaces. Keep Hebrew text outside the delimiters at all times.
   * WRONG: `$עבור לוגריתם טבעי: f(x,y) = \ln(G(x,y)), ונדרש G(x,y) > 0$`
   * RIGHT: `עבור לוגריתם טבעי: $f(x,y) = \ln(G(x,y))$, ונדרש $G(x,y) > 0$`
