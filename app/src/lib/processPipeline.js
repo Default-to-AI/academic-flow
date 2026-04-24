@@ -17,6 +17,16 @@ function hasExcessEnglishProse(section) {
   return englishWords.length >= 8 && englishWords.length > hebrewWords.length
 }
 
+function buildErrorContext(mathAudit, hasEmptyField, languageAuditFailed) {
+  const issues = []
+  if (hasEmptyField) issues.push('שדה אחד או יותר מ-content / common_mistakes / example הוחזר ריק — מלא את כולם')
+  if (languageAuditFailed) issues.push('הטקסט חזר ברובו באנגלית — חייב להיות בעברית')
+  if (mathAudit?.unbalancedDelimiters) issues.push('תוחמי מתמטיקה לא מאוזנים — ודא שכל $ ו-$$ נסגרים כהלכה')
+  if (mathAudit?.rawLatexLeaks?.length) issues.push(`פקודות LaTeX מחוץ לתוחמים: ${mathAudit.rawLatexLeaks.join(', ')} — העבר אותן לתוך $...$`)
+  if (mathAudit && !mathAudit.katexPassed) issues.push('נוסחה גורמת לשגיאת KaTeX — בדוק את תחביר ה-LaTeX')
+  return issues.length ? issues : null
+}
+
 function buildFallbackSection(section, reason) {
   const excerpt = (section.sourceText || '').split('\n').slice(0, 12).join('\n').trim()
   const userMessage = reason === 'language_audit_failed'
@@ -69,6 +79,7 @@ export async function processSections({ sections, generateSection, onStatus = ()
   for (const section of sections) {
     let success = null
     let lastReason = 'unknown_failure'
+    let lastErrorContext = null
 
     for (let attempt = 1; attempt <= MAX_SECTION_ATTEMPTS; attempt += 1) {
       onStatus(createAttemptLog({
@@ -79,7 +90,7 @@ export async function processSections({ sections, generateSection, onStatus = ()
       }))
 
       try {
-        const candidate = await generateSection(section, attempt)
+        const candidate = await generateSection(section, attempt, lastErrorContext)
         const mathAudit = auditMathBlocks([candidate.content, candidate.common_mistakes, candidate.example].join('\n'))
         const hasEmptyField = ['content', 'common_mistakes', 'example'].some(field => !(candidate[field] || '').trim())
         const languageAuditFailed = hasExcessEnglishProse(candidate)
@@ -97,6 +108,8 @@ export async function processSections({ sections, generateSection, onStatus = ()
           lastReason = 'math_audit_failed'
         }
 
+        lastErrorContext = buildErrorContext(mathAudit, hasEmptyField, languageAuditFailed)
+
         onStatus(createAttemptLog({
           attempt,
           maxAttempts: MAX_SECTION_ATTEMPTS,
@@ -104,6 +117,7 @@ export async function processSections({ sections, generateSection, onStatus = ()
           status: `section:${section.heading}:${lastReason}`,
         }))
       } catch (error) {
+        lastErrorContext = null
         lastReason = error?.message || 'request_failed'
         onStatus(createAttemptLog({
           attempt,

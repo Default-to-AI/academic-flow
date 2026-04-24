@@ -132,10 +132,14 @@ async function extractSourcePages(file) {
     .filter(Boolean)
 }
 
-function buildDocumentPrompt(section, attempt, mode = 'outline') {
+function buildDocumentPrompt(section, attempt, mode = 'outline', errorContext = null) {
   const scopeNote = mode === 'page'
-    ? 'זהו עמוד PDF יחיד שנשלח למטרת דיבוג. הסתמך על התמונה המצורפת קודם, והשתמש בטקסט רק כעזר.'
+    ? 'זהו עמוד PDF. הסתמך על התמונה המצורפת קודם, והשתמש בטקסט רק כעזר.'
     : 'זהו מקטע שנגזר ממבנה המסמך.'
+
+  const errorSection = Array.isArray(errorContext) && errorContext.length > 0
+    ? `\nתיקון חובה — שגיאות מהניסיון הקודם:\n${errorContext.map(e => `- ${e}`).join('\n')}\n`
+    : ''
 
   return `
 הפק קטע לימוד יחיד בפורמט JSON תקין בלבד.
@@ -151,7 +155,7 @@ ${section.level}
 
 מספר ניסיון:
 ${attempt}
-
+${errorSection}
 טקסט המקור למקטע:
 ${section.sourceText}
 
@@ -169,6 +173,7 @@ ${section.sourceText}
 - אין להשאיר אף שדה ריק
 - כל LaTeX חייב להופיע בתוך $...$ או $$...$$ בלבד
 - אין לחשוף \\begin, \\frac, \\sqrt או פקודות אחרות מחוץ לתוחמי מתמטיקה
+- escaping ב-JSON: כל backslash ב-LaTeX חייב להיות כפול — כתוב \\\\frac ולא \\frac, \\\\begin ולא \\begin
 - אם צורפה תמונת עמוד, היא מקור האמת למבנה המתמטי והטיפוגרפי
 `.trim()
 }
@@ -242,8 +247,11 @@ export async function processDocument(file, apiKey, options = {}) {
     const sectionInputs = usingSelectedPdfPages
       ? buildSelectedPageInputs(extractedPages, pageNumbers)
       : buildSectionInputs(pages, contentOutline.length > 0 ? contentOutline : effectiveOutline)
-    const renderedPageImages = usingSelectedPdfPages
-      ? await renderPdfPageImages(file, pageNumbers)
+    const pagesToRender = isPdfFile(file)
+      ? [...new Set(sectionInputs.map(s => s.page))]
+      : []
+    const renderedPageImages = pagesToRender.length > 0
+      ? await renderPdfPageImages(file, pagesToRender)
       : []
     const renderedPageImageMap = new Map(renderedPageImages.map(image => [image.pageNumber, image]))
 
@@ -251,15 +259,16 @@ export async function processDocument(file, apiKey, options = {}) {
     const model = genAI.getGenerativeModel({
       model: getModel(),
       systemInstruction: systemPromptText,
-      generationConfig: { responseMimeType: 'application/json' },
+      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     })
 
     const sections = await processSections({
       sections: sectionInputs,
       onStatus: pushStatus,
-      generateSection: async (section, attempt) => {
+      generateSection: async (section, attempt, errorContext) => {
         const pageImage = renderedPageImageMap.get(section.page)
-        const parts = [buildDocumentPrompt(section, attempt, usingSelectedPdfPages ? 'page' : 'outline')]
+        const mode = pageImage ? 'page' : 'outline'
+        const parts = [buildDocumentPrompt(section, attempt, mode, errorContext)]
 
         if (pageImage) {
           parts.unshift({

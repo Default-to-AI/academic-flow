@@ -43,6 +43,7 @@ Return ONLY a valid JSON object:
   * Never leave raw LaTeX commands outside math delimiters. Expressions such as `\infty`, `\lim`, `\frac`, `\begin{cases}` must always be inside `$...$` or `$$...$$`.
   * Any multi-line environment such as `\begin{cases}...\end{cases}` or aligned derivations must use block math `$$...$$`, not inline math.
   * Use actual newlines for paragraph/list breaks. Do not use LaTeX `\\` outside math as a text formatting tool.
+  * **CRITICAL — JSON backslash escaping**: This output is parsed as JSON. Every LaTeX backslash must be doubled in the JSON string value. Write `\\frac`, `\\sqrt`, `\\begin`, `\\end`, not `\frac`, `\sqrt`, `\begin`, `\end`. A single backslash is invalid JSON and will break parsing.
   * **CRITICAL — No Hebrew inside LaTeX delimiters**: Hebrew text must NEVER appear inside `$...$` or `$$...$$` blocks. Math mode strips spaces, so Hebrew words inside delimiters will be rendered as a single merged string with no spaces. Keep Hebrew text outside the delimiters at all times.
   * WRONG: `$עבור לוגריתם טבעי: f(x,y) = \ln(G(x,y)), ונדרש G(x,y) > 0$`
   * RIGHT: `עבור לוגריתם טבעי: $f(x,y) = \ln(G(x,y))$, ונדרש $G(x,y) > 0$`
