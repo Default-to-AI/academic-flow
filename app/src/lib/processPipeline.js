@@ -19,7 +19,7 @@ function hasExcessEnglishProse(section) {
 
 function buildErrorContext(mathAudit, hasEmptyField, languageAuditFailed) {
   const issues = []
-  if (hasEmptyField) issues.push('שדה אחד או יותר מ-content / common_mistakes / example הוחזר ריק — מלא את כולם')
+  if (hasEmptyField) issues.push('השדה content הוחזר ריק — מלא אותו בטקסט המקור הרלוונטי בלי לסכם')
   if (languageAuditFailed) issues.push('הטקסט חזר ברובו באנגלית — חייב להיות בעברית')
   if (mathAudit?.unbalancedDelimiters) issues.push('תוחמי מתמטיקה לא מאוזנים — ודא שכל $ ו-$$ נסגרים כהלכה')
   if (mathAudit?.rawLatexLeaks?.length) issues.push(`פקודות LaTeX מחוץ לתוחמים: ${mathAudit.rawLatexLeaks.join(', ')} — העבר אותן לתוך $...$`)
@@ -92,7 +92,7 @@ export async function processSections({ sections, generateSection, onStatus = ()
       try {
         const candidate = await generateSection(section, attempt, lastErrorContext)
         const mathAudit = auditMathBlocks([candidate.content, candidate.common_mistakes, candidate.example].join('\n'))
-        const hasEmptyField = ['content', 'common_mistakes', 'example'].some(field => !(candidate[field] || '').trim())
+        const hasEmptyField = !(candidate.content || '').trim()
         const languageAuditFailed = hasExcessEnglishProse(candidate)
 
         if (mathAudit.passed && !hasEmptyField && !languageAuditFailed) {

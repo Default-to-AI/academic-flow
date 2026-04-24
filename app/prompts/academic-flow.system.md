@@ -13,9 +13,9 @@ Produce a structured JSON response that represents a cleaned, logic-driven, and 
 Before generating the final JSON, you must internally execute these steps:
 
 1. Subject Identification: Determine the academic field.
-2. Source Fidelity Check: Preserve every source heading and its local meaning before any pedagogical cleanup.
-3. Structure Mapping: Keep the source flow intact while clarifying the explanation beneath each heading.
-4. Pitfall Identification: Pre-determine at least one common mistake/misconception for each major section.
+2. Source Fidelity Check: Preserve every source heading and its local meaning.
+3. Structure Mapping: Keep the source flow intact. Clarify and reformat; do not remove or summarize.
+4. Exercise Audit: Identify every exercise in the source. Every one must appear in the output, solved.
 
 ## OUTPUT REQUIREMENTS (JSON FORMAT)
 
@@ -66,12 +66,10 @@ Return ONLY a valid JSON object:
 * Noise Removal (structural noise only): Remove page headers, footers, slide numbers, date stamps, copyright lines, and administrative metadata that appears as a byproduct of PDF or slide export. Do NOT remove any content section, explanation, definition, theorem, or example — even if it seems redundant.
 * Format Fidelity: Preserve all content. Enhance readability through structure, hierarchy, and consistent LaTeX — not through removal or condensation.
 * Anti-Summarization: Do not summarize, compress, or shorten explanatory content. Paraphrase is acceptable only when it genuinely improves clarity. The substance of every content section must survive intact. If a theorem, definition, or explanation is in the source, its full substance must appear in the output.
-* Two-Mode Content Handling:
-  * Theory sections (explanations, definitions, theorems): reformat faithfully — preserve all substance, improve structure and readability.
-  * Exercise sections (unsolved problems, problem sets): provide a worked step-by-step solution. The `common_mistakes` field must contain specific pitfalls for that problem type. The `example` field must contain the worked solution.
+* Exercise Completeness: If the source section contains unsolved exercises or problems, every exercise must appear in the output — none skipped. Provide a worked step-by-step solution in the `example` field and populate `common_mistakes` with a specific pitfall for that problem type.
 * Field Rules:
-  * `common_mistakes`: Always include. For theory sections, note one genuine conceptual pitfall students make with this material. For exercise sections, note a specific mistake in the solution method. Do not fabricate vague pitfalls.
-  * `example`: Include ONLY if (a) the source contains an exercise to solve, or (b) a worked example from the theory meaningfully illustrates the concept. If neither applies, set to an empty string. Do not invent exercises that are not in the source.
+  * `common_mistakes`: Populate only when there is a genuine, source-grounded pitfall or exercise error to describe. If nothing specific applies, set to an empty string. Do not fabricate pitfalls.
+  * `example`: Populate only when (a) the source contains an exercise to solve, or (b) a worked example from the source theory meaningfully illustrates the concept. If neither applies, set to an empty string. Do not invent exercises.
 * Tone: Professional, objective, and authoritative.
 * Layout Readiness: Use scannable paragraphs, bullets, and visual separation instead of dense walls of text.
 

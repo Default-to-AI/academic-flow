@@ -19,35 +19,52 @@ describe('buildSourceOutline', () => {
     ])
   })
 
-  it('builds section inputs from the extracted outline', () => {
+  it('extracts a generic lecture-note outline without hardcoded course titles', () => {
     const pages = [
-      'רציפות ואי רציפות\nפתיחה',
-      'תרגילים\nשאלה 1',
-      'אם יש זמן פותרים לבד\nשאלה 2',
+      'מבוא למיקרו כלכלה\nהיצע וביקוש\nהקשר בין מחיר לכמות',
+      'שיווי משקל בשוק\nכאשר הביקוש שווה להיצע מתקבל שיווי משקל\n1. תרגול קצר',
     ]
-    const outline = buildSourceOutline(pages)
+
+    expect(buildSourceOutline(pages)).toEqual([
+      { id: 'h1-1', level: 'H1', text: 'מבוא למיקרו כלכלה', page: 1 },
+      { id: 'h2-1', level: 'H2', text: 'היצע וביקוש', page: 1 },
+      { id: 'h2-2', level: 'H2', text: 'שיווי משקל בשוק', page: 2 },
+      { id: 'h3-1', level: 'H3', text: '1. תרגול קצר', page: 2 },
+    ])
+  })
+
+  it('builds bounded section inputs that stop at the next heading across pages', () => {
+    const pages = [
+      'מבוא למיקרו כלכלה\nפתיחה\nהיצע וביקוש\nעקומת הביקוש יורדת',
+      'המשך הסבר על הביקוש\nשיווי משקל בשוק\nנקודת החיתוך בין ההיצע לביקוש',
+    ]
+    const outline = [
+      { id: 'h1-1', level: 'H1', text: 'מבוא למיקרו כלכלה', page: 1 },
+      { id: 'h2-1', level: 'H2', text: 'היצע וביקוש', page: 1 },
+      { id: 'h2-2', level: 'H2', text: 'שיווי משקל בשוק', page: 2 },
+    ]
 
     expect(buildSectionInputs(pages, outline)).toEqual([
       {
         id: 'h1-1',
         level: 'H1',
-        heading: 'רציפות ואי רציפות',
+        heading: 'מבוא למיקרו כלכלה',
         page: 1,
-        sourceText: 'רציפות ואי רציפות\nפתיחה',
+        sourceText: 'מבוא למיקרו כלכלה\nפתיחה',
       },
       {
         id: 'h2-1',
         level: 'H2',
-        heading: 'תרגילים',
-        page: 2,
-        sourceText: 'תרגילים\nשאלה 1\n\nאם יש זמן פותרים לבד\nשאלה 2',
+        heading: 'היצע וביקוש',
+        page: 1,
+        sourceText: 'היצע וביקוש\nעקומת הביקוש יורדת\n\nהמשך הסבר על הביקוש',
       },
       {
-        id: 'h3-1',
-        level: 'H3',
-        heading: 'אם יש זמן פותרים לבד',
-        page: 3,
-        sourceText: 'אם יש זמן פותרים לבד\nשאלה 2',
+        id: 'h2-2',
+        level: 'H2',
+        heading: 'שיווי משקל בשוק',
+        page: 2,
+        sourceText: 'שיווי משקל בשוק\nנקודת החיתוך בין ההיצע לביקוש',
       },
     ])
   })

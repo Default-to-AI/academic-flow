@@ -25,18 +25,18 @@ describe('auditGeneratedDocument', () => {
     })
   })
 
-  it('flags empty blocks even when headers exist', () => {
+  it('flags empty content blocks but allows optional fields to stay empty', () => {
     const generated = {
       title: 'רציפות ואי רציפות',
       sections: [
         { header: 'תרגילים', content: '', common_mistakes: 'x', example: 'y' },
         { header: 'אם יש זמן פותרים לבד', content: 'x', common_mistakes: '', example: 'y' },
+        { header: 'דוגמה נוספת', content: 'x', common_mistakes: '', example: '' },
       ],
     }
 
     expect(auditGeneratedDocument({ outline, generated }).emptyBlocks).toEqual([
       { header: 'תרגילים', field: 'content' },
-      { header: 'אם יש זמן פותרים לבד', field: 'common_mistakes' },
     ])
   })
 })

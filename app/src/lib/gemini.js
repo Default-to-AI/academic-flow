@@ -239,9 +239,10 @@ export async function processDocument(file, apiKey, options = {}) {
       : extractedPages
     const usingSelectedPdfPages = isPdfFile(file) && Array.isArray(pageNumbers) && pageNumbers.length > 0
     const outline = usingSelectedPdfPages ? [] : buildSourceOutline(pages)
+    const outlineHasContentSections = outline.some(item => item.level !== 'H1')
     const effectiveOutline = usingSelectedPdfPages
       ? [{ id: 'h1-1', level: 'H1', text: `${file.name} — עמודים ${pageNumbers.join(', ')}`, page: 1 }]
-      : (outline.length > 0 ? outline : getFallbackOutline(pages, file.name))
+      : (outlineHasContentSections ? outline : getFallbackOutline(pages, file.name))
     const title = getTitleFromOutline(effectiveOutline, file.name)
     const contentOutline = effectiveOutline.filter(item => item.level !== 'H1')
     const sectionInputs = usingSelectedPdfPages

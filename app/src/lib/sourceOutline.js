@@ -1,67 +1,175 @@
-const HEADING_RULES = [
-  { level: 'H1', pattern: /^רציפות ואי רציפות$/ },
-  { level: 'H2', pattern: /^(רציפות|סיווג נקודות אי רציפות|תרגילים|היכן נצפה למצוא אי רציפות)$/ },
-  { level: 'H3', pattern: /^(\d+\.\s+.+|אם יש זמן פותרים לבד)$/ },
+const EXERCISE_HEADING_PATTERN = /^(?:\d+[.)-]|[א-ת][.)])\s+\S/
+const SELF_PRACTICE_PATTERN = /^אם יש זמן/
+const SENTENCE_START_WORDS = ['כאשר', 'אם', 'לכן', 'כדי', 'משום', 'בגלל', 'לאחר', 'לפני']
+const HEADING_KEYWORDS = [
+  'מבוא',
+  'רקע',
+  'הגדרה',
+  'הגדרות',
+  'משפט',
+  'טענה',
+  'סיווג',
+  'מסקנה',
+  'סיכום',
+  'תרגיל',
+  'תרגילים',
+  'דוגמה',
+  'דוגמא',
+  'שאלה',
+  'שאלות',
+  'פתרון',
+  'הוכחה',
+  'יישום',
+  'שיווי',
+  'ביקוש',
+  'היצע',
 ]
 
 function normalizeHeading(text) {
   return (text || '').replace(/\s+/g, ' ').trim()
 }
 
+function countWords(text) {
+  return (text.match(/\S+/g) || []).length
+}
+
+function isNoiseLine(line) {
+  return /^\d+$/.test(line) || /^עמוד\s+\d+$/i.test(line) || /^page\s+\d+$/i.test(line)
+}
+
+function isCompactLine(line) {
+  return line.length <= 72 && countWords(line) <= 8
+}
+
+function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirstPage }) {
+  if (!line || isNoiseLine(line)) return Number.NEGATIVE_INFINITY
+  if (EXERCISE_HEADING_PATTERN.test(line)) return 10
+  if (SELF_PRACTICE_PATTERN.test(line)) return 10
+
+  let score = 0
+  const hasKeyword = HEADING_KEYWORDS.some(keyword => line.includes(keyword))
+  const hasContextCue =
+    Boolean(nextLine && nextLine.length >= line.length + 12) ||
+    Boolean(previousLine && previousLine.length >= line.length + 20)
+
+  if (isFirstLineOnFirstPage && isCompactLine(line)) score += 4
+  if (isCompactLine(line)) score += 2
+  if (countWords(line) <= 5) score += 1
+  if (hasKeyword) score += 2
+  if (!/[.!?]$/.test(line)) score += 1
+  if (!/[,;]|:\s+\S{4,}/.test(line)) score += 1
+  if (hasContextCue) score += 1
+  if (SENTENCE_START_WORDS.some(word => line.startsWith(`${word} `))) score -= 3
+
+  if (line.length > 85) score -= 3
+  if (countWords(line) > 12) score -= 3
+  if (/[=<>+\-/*]/.test(line)) score -= 2
+
+  if (!isFirstLineOnFirstPage && !hasKeyword && !hasContextCue) {
+    score -= 3
+  }
+
+  return score
+}
+
 export function buildSourceOutline(pages) {
   const counters = { H1: 0, H2: 0, H3: 0 }
   const outline = []
+  let detectedTitle = false
 
   pages.forEach((pageText, pageIndex) => {
-    for (const rawLine of (pageText || '').split('\n')) {
-      const line = normalizeHeading(rawLine)
-      if (!line) continue
+    const lines = (pageText || '').split('\n').map(normalizeHeading).filter(Boolean)
 
-      const match = HEADING_RULES.find(rule => rule.pattern.test(line))
-      if (!match) continue
+    lines.forEach((line, lineIndex) => {
+      const previousLine = lineIndex > 0 ? lines[lineIndex - 1] : ''
+      const nextLine = lineIndex < lines.length - 1 ? lines[lineIndex + 1] : ''
+      const score = scoreHeadingCandidate({
+        line,
+        previousLine,
+        nextLine,
+        isFirstLineOnFirstPage: pageIndex === 0 && lineIndex === 0,
+      })
 
-      counters[match.level] += 1
+      if (score < 4) return
+
+      const level = !detectedTitle
+        ? 'H1'
+        : ((EXERCISE_HEADING_PATTERN.test(line) || SELF_PRACTICE_PATTERN.test(line)) ? 'H3' : 'H2')
+
+      counters[level] += 1
       outline.push({
-        id: `${match.level.toLowerCase()}-${counters[match.level]}`,
-        level: match.level,
+        id: `${level.toLowerCase()}-${counters[level]}`,
+        level,
         text: line,
         page: pageIndex + 1,
       })
-    }
+
+      if (level === 'H1') {
+        detectedTitle = true
+      }
+    })
   })
 
   return outline
 }
 
-export function buildSectionInputs(pages, outline) {
+function slicePageToHeading(pageText, currentHeading, nextHeading = null) {
+  const startIndex = currentHeading ? pageText.indexOf(currentHeading) : 0
+  const fromIndex = startIndex > -1 ? startIndex : 0
+
+  if (!nextHeading) {
+    return pageText.slice(fromIndex).trim()
+  }
+
+  const nextIndex = pageText.indexOf(nextHeading, fromIndex + currentHeading.length)
+  const toIndex = nextIndex > -1 ? nextIndex : pageText.length
+  return pageText.slice(fromIndex, toIndex).trim()
+}
+
+function sliceUntilNextHeading(pages, item, next) {
   const normalizedPages = pages.map(page => page || '')
+  const currentPageIndex = item.page - 1
+  const chunks = []
 
+  if (next && next.page === item.page) {
+    return slicePageToHeading(normalizedPages[currentPageIndex], item.text, next.text)
+  }
+
+  chunks.push(slicePageToHeading(normalizedPages[currentPageIndex], item.text))
+
+  if (!next) {
+    normalizedPages.slice(currentPageIndex + 1).forEach((pageText) => {
+      const text = pageText.trim()
+      if (text) chunks.push(text)
+    })
+    return chunks.join('\n\n').trim()
+  }
+
+  normalizedPages.slice(currentPageIndex + 1, next.page - 1).forEach((pageText) => {
+    const text = pageText.trim()
+    if (text) chunks.push(text)
+  })
+
+  const nextPageText = normalizedPages[next.page - 1] || ''
+  const nextHeadingIndex = nextPageText.indexOf(next.text)
+  if (nextHeadingIndex > -1) {
+    const leadIn = nextPageText.slice(0, nextHeadingIndex).trim()
+    if (leadIn) chunks.push(leadIn)
+  }
+
+  return chunks.join('\n\n').trim()
+}
+
+export function buildSectionInputs(pages, outline) {
   return outline.map((item, index) => {
-    const currentPageIndex = item.page - 1
-    const currentPageText = normalizedPages[currentPageIndex] || ''
     const next = outline[index + 1]
-    const headingStart = currentPageText.indexOf(item.text)
-    const nextHeadingInSamePage = next && next.page === item.page
-      ? currentPageText.indexOf(next.text, Math.max(headingStart + item.text.length, 0))
-      : -1
-
-    let sourceText = ''
-    if (nextHeadingInSamePage && nextHeadingInSamePage > -1) {
-      sourceText = currentPageText.slice(headingStart, nextHeadingInSamePage).trim()
-    } else if (item.level === 'H1') {
-      sourceText = currentPageText.slice(Math.max(headingStart, 0)).trim()
-    } else {
-      const nextPageIndex = next ? next.page - 1 : normalizedPages.length - 1
-      const pageSlice = normalizedPages.slice(currentPageIndex, nextPageIndex + 1)
-      sourceText = pageSlice.join('\n\n').trim()
-    }
 
     return {
       id: item.id,
       level: item.level,
       heading: item.text,
       page: item.page,
-      sourceText,
+      sourceText: sliceUntilNextHeading(pages, item, next),
     }
   })
 }

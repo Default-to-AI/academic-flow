@@ -16,10 +16,8 @@ export function auditGeneratedDocument({ outline, generated }) {
 
   const emptyBlocks = []
   for (const section of generatedSections) {
-    for (const field of ['content', 'common_mistakes', 'example']) {
-      if (!normalize(section[field])) {
-        emptyBlocks.push({ header: normalize(section.header), field })
-      }
+    if (!normalize(section.content)) {
+      emptyBlocks.push({ header: normalize(section.header), field: 'content' })
     }
   }
 

@@ -90,6 +90,26 @@ describe('processSections', () => {
     expect(result[0].content).toContain('סימן האינסוף')
   })
 
+  it('accepts sections with empty optional blocks when content is present', async () => {
+    const generateSection = vi.fn().mockResolvedValue({
+      header: 'הגדרה',
+      content: 'הפונקציה מוגדרת לכל $x > 0$.',
+      common_mistakes: '',
+      example: '',
+    })
+
+    const result = await processSections({
+      sections: [{ id: 'h2-1', heading: 'הגדרה', sourceText: '...' }],
+      generateSection,
+      onStatus: () => {},
+    })
+
+    expect(generateSection).toHaveBeenCalledTimes(1)
+    expect(result[0]._fallback).toBeUndefined()
+    expect(result[0].common_mistakes).toBe('')
+    expect(result[0].example).toBe('')
+  })
+
   it('rejects output that drops the self-practice section or leaks raw cases latex', () => {
     const generated = {
       title: 'רציפות ואי רציפות',
