@@ -1,6 +1,6 @@
 const EXERCISE_HEADING_PATTERN = /^(?:\d+[.)-]|[א-ת][.)])\s+\S/
 const SELF_PRACTICE_PATTERN = /^אם יש זמן/
-const SENTENCE_START_WORDS = ['כאשר', 'אם', 'לכן', 'כדי', 'משום', 'בגלל', 'לאחר', 'לפני']
+const SENTENCE_START_WORDS = ['כאשר', 'אם', 'לכן', 'כדי', 'משום', 'בגלל', 'לאחר', 'לפני', 'במילים', 'נסמן', 'נגדיר', 'נאמר']
 const HEADING_KEYWORDS = [
   'מבוא',
   'רקע',
@@ -59,7 +59,8 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
 
   if (line.length > 85) score -= 3
   if (countWords(line) > 12) score -= 3
-  if (/[=<>+\-/*]/.test(line)) score -= 2
+  if (/[=<>+\-/*→←↔⇒⇔∈∉∀∃]/.test(line)) score -= 2
+  if (/[\u{1D400}-\u{1D7FF}]/u.test(line)) score -= 4
 
   if (!isFirstLineOnFirstPage && !hasKeyword && !hasContextCue) {
     score -= 3
