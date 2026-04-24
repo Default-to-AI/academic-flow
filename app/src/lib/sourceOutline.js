@@ -13,12 +13,8 @@ const HEADING_KEYWORDS = [
   'סיכום',
   'תרגיל',
   'תרגילים',
-  'דוגמה',
-  'דוגמא',
   'שאלה',
   'שאלות',
-  'פתרון',
-  'הוכחה',
   'יישום',
   'שיווי',
   'ביקוש',
@@ -68,6 +64,8 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
   if (!isFirstLineOnFirstPage && !hasKeyword && !hasContextCue) {
     score -= 3
   }
+
+  if (countWords(line) === 1 && !hasKeyword && !EXERCISE_HEADING_PATTERN.test(line)) score -= 3
 
   return score
 }
