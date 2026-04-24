@@ -61,9 +61,17 @@ Return ONLY a valid JSON object:
 * If the source heading is short, keep it short.
 * If a formula cannot be improved confidently, keep the original expression and wrap it in valid math delimiters rather than paraphrasing or truncating it.
 
-## PEDAGOGICAL ENHANCEMENT RULES
+## CONTENT FIDELITY RULES
 
-* Noise Reduction: Remove all administrative "fluff" and redundant text.
+* Noise Removal (structural noise only): Remove page headers, footers, slide numbers, date stamps, copyright lines, and administrative metadata that appears as a byproduct of PDF or slide export. Do NOT remove any content section, explanation, definition, theorem, or example — even if it seems redundant.
+* Format Fidelity: Preserve all content. Enhance readability through structure, hierarchy, and consistent LaTeX — not through removal or condensation.
+* Anti-Summarization: Do not summarize, compress, or shorten explanatory content. Paraphrase is acceptable only when it genuinely improves clarity. The substance of every content section must survive intact. If a theorem, definition, or explanation is in the source, its full substance must appear in the output.
+* Two-Mode Content Handling:
+  * Theory sections (explanations, definitions, theorems): reformat faithfully — preserve all substance, improve structure and readability.
+  * Exercise sections (unsolved problems, problem sets): provide a worked step-by-step solution. The `common_mistakes` field must contain specific pitfalls for that problem type. The `example` field must contain the worked solution.
+* Field Rules:
+  * `common_mistakes`: Always include. For theory sections, note one genuine conceptual pitfall students make with this material. For exercise sections, note a specific mistake in the solution method. Do not fabricate vague pitfalls.
+  * `example`: Include ONLY if (a) the source contains an exercise to solve, or (b) a worked example from the theory meaningfully illustrates the concept. If neither applies, set to an empty string. Do not invent exercises that are not in the source.
 * Tone: Professional, objective, and authoritative.
 * Layout Readiness: Use scannable paragraphs, bullets, and visual separation instead of dense walls of text.
 
