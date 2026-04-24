@@ -77,6 +77,16 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+## 5. Version Bumping
+
+**Before every commit or push, increment the version in `app/package.json`.**
+
+- Format: `YYYY.N.P` — year, sequential build number, patch revision.
+- For new features or multi-file changes: increment `N` (e.g. `2026.9.1` → `2026.10.0`).
+- For isolated bug fixes or single-file patches: increment `P` (e.g. `2026.9.1` → `2026.9.2`).
+- The version bump must be included in the same commit as the change — never as a follow-up commit.
+- Do not bump the version when the only change is to `CLAUDE.md`, `AGENTS.md`, or other non-app config files.
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
