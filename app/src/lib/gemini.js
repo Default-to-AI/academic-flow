@@ -118,7 +118,8 @@ function getFallbackOutline(pages, fileName) {
 
 function getTitleFromOutline(outline, fileName) {
   const h1 = outline.find(item => item.level === 'H1')
-  return h1?.text || fileName.replace(/\.[^.]+$/, '')
+  const raw = h1?.text || fileName.replace(/\.[^.]+$/, '')
+  return raw.replace(/^\[Size: \d+pt, Bold: (?:true|false)\]\s*/, '')
 }
 
 function isSelectedPageNoise(line) {
@@ -159,6 +160,11 @@ async function extractSourcePages(file) {
     .filter(Boolean)
 }
 
+function hasCIDFontGarbling(text) {
+  const matches = (text || '').match(/[\u{1D400}-\u{1D7FF}]/gu)
+  return matches !== null && matches.length > 10
+}
+
 function buildDocumentPrompt(section, attempt, mode = 'outline', errorContext = null) {
   const scopeNote = mode === 'page'
     ? 'זהו עמוד PDF. הסתמך על התמונה המצורפת קודם, והשתמש בטקסט רק כעזר.'
@@ -166,6 +172,10 @@ function buildDocumentPrompt(section, attempt, mode = 'outline', errorContext = 
 
   const errorSection = Array.isArray(errorContext) && errorContext.length > 0
     ? `\nתיקון חובה — שגיאות מהניסיון הקודם:\n${errorContext.map(e => `- ${e}`).join('\n')}\n`
+    : ''
+
+  const cidWarning = hasCIDFontGarbling(section.sourceText)
+    ? '\nאזהרה: הטקסט המקור מכיל תווי OCR פגומים (CID font encoding). השתמש בתמונת העמוד כמקור האמת היחיד לנוסחאות, משתנים ומבנה. התעלם מרצפי תווים מוזרים בטקסט.\n'
     : ''
 
   return `
@@ -182,7 +192,7 @@ ${section.level}
 
 מספר ניסיון:
 ${attempt}
-${errorSection}
+${cidWarning}${errorSection}
 טקסט המקור למקטע:
 ${section.sourceText}
 
