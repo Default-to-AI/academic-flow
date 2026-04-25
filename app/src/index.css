@@ -80,6 +80,34 @@ body {
   margin: 1rem 0;
 }
 
+.doc-inline-h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 1rem 0 0.4rem;
+  color: #1f2937;
+}
+
+.doc-inline-h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.8rem 0 0.3rem;
+  color: #374151;
+}
+
+.doc-page-marker {
+  display: block;
+  font-size: 0.7rem;
+  font-family: 'Courier New', monospace;
+  color: #9ca3af;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-bottom: 0.75rem;
+  direction: ltr;
+  text-align: left;
+}
+
 .doc-list-item {
   display: block;
   padding-right: 1.2em;

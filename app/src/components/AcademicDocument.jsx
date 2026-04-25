@@ -21,33 +21,21 @@ export default function AcademicDocument({ data, auditSummary = [] }) {
         <hr className="doc-divider" />
       </header>
 
-      {data.sections.map((section, i) => (
-        <section key={i} className="doc-section">
-          <h2 className="doc-section-header">{section.header}</h2>
-
-          <div className="doc-content">
-            <MathText text={section.content} />
-          </div>
-
-          {section.common_mistakes && (
-            <div className="doc-box doc-box-mistakes">
-              <div className="doc-box-label">טעויות נפוצות</div>
-              <div>
-                <MathText text={section.common_mistakes} />
-              </div>
+      {data.sections.map((section, i) => {
+        const prevPage = i > 0 ? data.sections[i - 1]._page : null
+        const showPageMarker = section._page != null && section._page !== prevPage
+        return (
+          <section key={i} className="doc-section">
+            {showPageMarker && (
+              <span className="doc-page-marker no-print">generated from page {section._page}</span>
+            )}
+            <h2 className="doc-section-header">{section.header}</h2>
+            <div className="doc-content">
+              <MathText text={section.body} />
             </div>
-          )}
-
-          {section.example && (
-            <div className="doc-box doc-box-example">
-              <div className="doc-box-label">דוגמה</div>
-              <div>
-                <MathText text={section.example} />
-              </div>
-            </div>
-          )}
-        </section>
-      ))}
+          </section>
+        )
+      })}
     </article>
   )
 }

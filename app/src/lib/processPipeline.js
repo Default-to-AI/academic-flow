@@ -24,20 +24,20 @@ function stripMath(text) {
 }
 
 function hasExcessEnglishProse(section) {
-  const plainText = stripMath([section.content, section.common_mistakes, section.example].join('\n'))
+  const plainText = stripMath(section.body || '')
   const englishWords = plainText.match(/\b[A-Za-z]{3,}\b/g) || []
-  const hebrewWords = plainText.match(/[\u0590-\u05FF]{2,}/g) || []
+  const hebrewWords = plainText.match(/[֐-׿]{2,}/g) || []
 
   return englishWords.length >= 8 && englishWords.length > hebrewWords.length
 }
 
 function buildErrorContext(mathAudit, hasEmptyField, languageAuditFailed) {
   const issues = []
-  if (hasEmptyField) issues.push('השדה content הוחזר ריק — מלא אותו בטקסט המקור הרלוונטי בלי לסכם')
+  if (hasEmptyField) issues.push('השדה body הוחזר ריק — מלא אותו בטקסט המקור הרלוונט בלי לסכם')
   if (languageAuditFailed) issues.push('הטקסט חזר ברובו באנגלית — חייב להיות בעברית')
   if (mathAudit?.unbalancedDelimiters) issues.push('תוחמי מתמטיקה לא מאוזנים — ודא שכל $ ו-$$ נסגרים כהלכה')
   if (mathAudit?.rawLatexLeaks?.length) issues.push(`פקודות LaTeX מחוץ לתוחמים: ${mathAudit.rawLatexLeaks.join(', ')} — העבר אותן לתוך $...$`)
-  if (mathAudit && !mathAudit.katexPassed) issues.push('נוסחה גורמת לשגיאת KaTeX — בדוק את תחביר ה-LaTeX')
+  if (mathAudit && !mathAudit.katexPassed) issues.push('נוסחאה גורמת לשגיאת KaTeX — בדוק את תחביר ה-LaTeX')
   return issues.length ? issues : null
 }
 
@@ -49,14 +49,13 @@ function buildFallbackSection(section, reason) {
 
   return {
     header: section.heading,
-    content: [
+    body: [
       '**שחזור אוטומטי חלקי**',
       `${userMessage} לכן מצורף קטע המקור כפי שחולץ מהקובץ:`,
       excerpt || 'לא חולץ טקסט זמין מהמקור עבור סעיף זה.',
     ].join('\n\n'),
-    common_mistakes: 'ייתכן שהסעיף כלל נוסחאות, כיווניות או ניסוח שלא עברו את בדיקות האיכות.',
-    example: 'הסעיף הוחזר במצב גיבוי כדי למנוע קריסה של כל המסמך.',
     _fallback: true,
+    _page: section.page,
   }
 }
 
@@ -70,7 +69,7 @@ function summarizeDocumentMath(sections) {
   }
 
   for (const section of sections) {
-    const audit = auditMathBlocks([section.content, section.common_mistakes, section.example].join('\n'))
+    const audit = auditMathBlocks(section.body || '')
     aggregate.unbalancedDelimiters ||= audit.unbalancedDelimiters
     aggregate.katexPassed &&= audit.katexPassed
     aggregate.rawLatexLeaks.push(...audit.rawLatexLeaks)
@@ -110,8 +109,8 @@ export async function processSections({ sections, generateSection, onStatus = ()
       try {
         const candidate = await generateSection(section, attempt, lastErrorContext)
         throwIfAborted(signal)
-        const mathAudit = auditMathBlocks([candidate.content, candidate.common_mistakes, candidate.example].join('\n'))
-        const hasEmptyField = !(candidate.content || '').trim()
+        const mathAudit = auditMathBlocks(candidate.body || '')
+        const hasEmptyField = !(candidate.body || '').trim()
         const languageAuditFailed = hasExcessEnglishProse(candidate)
 
         if (mathAudit.passed && !hasEmptyField && !languageAuditFailed) {

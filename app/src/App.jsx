@@ -3,6 +3,7 @@ import FileUpload from './components/FileUpload.jsx'
 import Settings, { getApiKey } from './components/Settings.jsx'
 import AcademicDocument from './components/AcademicDocument.jsx'
 import RenderDebugger from './components/RenderDebugger.jsx'
+import DevPanel from './components/DevPanel.jsx'
 import { processDocument } from './lib/gemini.js'
 import { parsePageSelection } from './lib/pageSelection.js'
 import { getPdfPageCount, isPdfFile } from './lib/pdfText.js'
@@ -16,6 +17,8 @@ export default function App() {
   const [auditSummary, setAuditSummary] = useState([])
   const [showSettings, setShowSettings] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
+  const [showDevPanel, setShowDevPanel] = useState(false)
+  const [debugInfo, setDebugInfo] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const [pageCount, setPageCount] = useState(null)
   const [loadingFileMeta, setLoadingFileMeta] = useState(false)
@@ -96,6 +99,11 @@ export default function App() {
             setAuditSummary(summary)
           }
         },
+        onDebug: (info) => {
+          if (activeController.current === controller) {
+            setDebugInfo(info)
+          }
+        },
         pageNumbers,
         signal: controller.signal,
       })
@@ -129,6 +137,8 @@ export default function App() {
     setError('')
     setAttemptLogs([])
     setAuditSummary([])
+    setDebugInfo(null)
+    setShowDevPanel(false)
     setSelectedFile(null)
     setPageCount(null)
     setLoadingFileMeta(false)
@@ -155,11 +165,23 @@ export default function App() {
               >
                 קובץ חדש
               </button>
+              {!showDevPanel && (
+                <button
+                  onClick={() => window.print()}
+                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-1.5 rounded-lg transition-colors"
+                >
+                  שמור PDF ↓
+                </button>
+              )}
               <button
-                onClick={() => window.print()}
-                className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-1.5 rounded-lg transition-colors"
+                onClick={() => setShowDevPanel(d => !d)}
+                className={`text-sm px-3 py-1.5 rounded-lg transition-colors font-mono ${
+                  showDevPanel
+                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                    : 'text-gray-400 hover:bg-gray-100'
+                }`}
               >
-                שמור PDF ↓
+                {showDevPanel ? 'close dev' : 'dev panel'}
               </button>
             </>
           )}
@@ -379,9 +401,20 @@ export default function App() {
 
       {/* ── Academic Document (visible on screen + print) ── */}
       {!debugMode && status === 'done' && doc && (
-        <div className="max-w-[860px] mx-auto px-4 py-8 print:p-0 print:max-w-none">
-          <AcademicDocument data={doc} auditSummary={auditSummary} />
-        </div>
+        showDevPanel ? (
+          <div className="no-print flex" style={{ height: 'calc(100vh - 57px)' }}>
+            <div className="flex-1 overflow-y-auto px-4 py-8">
+              <AcademicDocument data={doc} auditSummary={auditSummary} />
+            </div>
+            <div className="w-[480px] shrink-0 border-l border-gray-200 overflow-hidden">
+              {debugInfo && <DevPanel validation={debugInfo.validation} doc={debugInfo.doc} />}
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-[860px] mx-auto px-4 py-8 print:p-0 print:max-w-none">
+            <AcademicDocument data={doc} auditSummary={auditSummary} />
+          </div>
+        )
       )}
 
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}

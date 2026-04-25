@@ -168,15 +168,13 @@ ${section.sourceText}
 החזר אובייקט JSON יחיד בצורה:
 {
   "header": "חייב להיות זהה בדיוק לכותרת המקור",
-  "content": "הסבר עברי פורמלי, קריא, סריק, עם נוסחאות מתוחמות היטב",
-  "common_mistakes": "טעויות נפוצות",
-  "example": "דוגמה פתורה"
+  "body": "תוכן מלא של הקטע — markdown עברי חופשי. השתמש בכותרות ### לתתי-נושא, רשימות, נוסחאות ומבנה המתאים לחומר. אל תכפה מבנה קבוע."
 }
 
 חוקים קשיחים:
 - header חייב להיות בדיוק "${section.heading}"
 - אין להמציא כותרת חדשה
-- אין להשאיר אף שדה ריק
+- אין להשאיר body ריק
 - כל LaTeX חייב להופיע בתוך $...$ או $$...$$ בלבד
 - אין לחשוף \\begin, \\frac, \\sqrt או פקודות אחרות מחוץ לתוחמי מתמטיקה
 - escaping ב-JSON: כל backslash ב-LaTeX חייב להיות כפול — כתוב \\\\frac ולא \\frac, \\\\begin ולא \\begin
@@ -189,9 +187,8 @@ function normalizeSectionPayload(payload, section) {
 
   return {
     header: section.heading,
-    content: normalizeModelText(candidate?.content),
-    common_mistakes: normalizeModelText(candidate?.common_mistakes),
-    example: normalizeModelText(candidate?.example),
+    body: normalizeModelText(candidate?.body),
+    _page: section.page,
   }
 }
 
@@ -225,6 +222,7 @@ export async function processDocument(file, apiKey, options = {}) {
   const {
     onStatus = () => {},
     onAudit = () => {},
+    onDebug = () => {},
     pageNumbers = null,
     signal = null,
   } = options
@@ -324,6 +322,8 @@ export async function processDocument(file, apiKey, options = {}) {
       `Math validation errors: ${validation.errors.length}`,
       `Math validation warnings: ${validation.warnings.length}`,
     ])
+
+    onDebug({ validation, doc: normalized })
 
     return normalized
   } catch (error) {
