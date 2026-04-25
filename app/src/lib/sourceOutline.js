@@ -40,39 +40,61 @@ function isCompactLine(line) {
   return line.length <= 72 && countWords(line) <= 8
 }
 
-function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirstPage }) {
-  if (!line || isNoiseLine(line)) return Number.NEGATIVE_INFINITY
-  if (EXERCISE_HEADING_PATTERN.test(line)) return 10
-  if (SELF_PRACTICE_PATTERN.test(line)) return 10
+export function extractHintAndText(line) {
+  const match = line.match(/^\[Size: (\d+)pt, Bold: (true|false)\]\s*(.*)/);
+  if (match) {
+    return {
+      size: parseInt(match[1], 10),
+      bold: match[2] === 'true',
+      text: match[3]
+    };
+  }
+  return { size: 12, bold: false, text: line };
+}
 
-  let score = 0
-  const hasKeyword = HEADING_KEYWORDS.some(keyword => line.includes(keyword))
+function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirstPage }) {
+  const parsed = extractHintAndText(line);
+  const rawText = parsed.text;
+
+  if (!rawText || isNoiseLine(rawText)) return Number.NEGATIVE_INFINITY;
+  
+  // High confidence heading based on font hints
+  if (parsed.size > 14) return 20;
+  if (parsed.size > 12 && parsed.bold) return 15;
+
+  if (EXERCISE_HEADING_PATTERN.test(rawText)) return 10;
+  if (SELF_PRACTICE_PATTERN.test(rawText)) return 10;
+
+  let score = 0;
+  const hasKeyword = HEADING_KEYWORDS.some(keyword => rawText.includes(keyword));
   const hasContextCue =
     Boolean(nextLine && nextLine.length >= line.length + 12) ||
-    Boolean(previousLine && previousLine.length >= line.length + 20)
+    Boolean(previousLine && previousLine.length >= line.length + 20);
 
-  if (isFirstLineOnFirstPage && isCompactLine(line)) score += 4
-  if (isCompactLine(line)) score += 2
-  if (countWords(line) <= 5) score += 1
-  if (hasKeyword) score += 2
-  if (!/[.!?]$/.test(line)) score += 1
-  if (!/[,;]|:\s+\S{4,}/.test(line)) score += 1
-  if (hasContextCue) score += 1
-  if (SENTENCE_START_WORDS.some(word => line.startsWith(`${word} `))) score -= 3
-  if (/^[•·–—●▪▸►]/.test(line)) score -= 4
+  if (isFirstLineOnFirstPage && isCompactLine(rawText)) score += 4;
+  if (isCompactLine(rawText)) score += 2;
+  if (countWords(rawText) <= 5) score += 1;
+  if (hasKeyword) score += 2;
+  if (!/[.!?]$/.test(rawText)) score += 1;
+  if (!/[,;]|:\s+\S{4,}/.test(rawText)) score += 1;
+  if (hasContextCue) score += 1;
+  if (SENTENCE_START_WORDS.some(word => rawText.startsWith(`${word} `))) score -= 3;
+  if (/^[•·–—●▪▸►]/.test(rawText)) score -= 4;
 
-  if (line.length > 85) score -= 3
-  if (countWords(line) > 12) score -= 3
-  if (/[=<>+\-/*→←↔⇒⇔∈∉∀∃]/.test(line)) score -= 2
-  if (/[\u{1D400}-\u{1D7FF}]/u.test(line)) score -= 4
+  if (rawText.length > 85) score -= 3;
+  if (countWords(rawText) > 12) score -= 3;
+  if (/[=<>+\-/*→←↔⇒⇔∈∉∀∃]/.test(rawText)) score -= 2;
+  if (/[\u{1D400}-\u{1D7FF}]/u.test(rawText)) score -= 4;
 
   if (!isFirstLineOnFirstPage && !hasKeyword && !hasContextCue) {
-    score -= 3
+    score -= 3;
   }
 
-  if (countWords(line) === 1 && !hasKeyword && !EXERCISE_HEADING_PATTERN.test(line)) score -= 3
+  if (countWords(rawText) === 1 && !hasKeyword && !EXERCISE_HEADING_PATTERN.test(rawText)) score -= 3;
 
-  return score
+  if (parsed.bold) score += 5;
+
+  return score;
 }
 
 export function buildSourceOutline(pages) {
@@ -95,9 +117,10 @@ export function buildSourceOutline(pages) {
 
       if (score < 4) return
 
+      const parsed = extractHintAndText(line);
       const level = !detectedTitle
         ? 'H1'
-        : ((EXERCISE_HEADING_PATTERN.test(line) || SELF_PRACTICE_PATTERN.test(line)) ? 'H3' : 'H2')
+        : ((EXERCISE_HEADING_PATTERN.test(parsed.text) || SELF_PRACTICE_PATTERN.test(parsed.text)) ? 'H3' : 'H2')
 
       counters[level] += 1
       outline.push({
