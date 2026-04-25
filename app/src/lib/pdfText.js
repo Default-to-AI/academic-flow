@@ -142,7 +142,7 @@ function canvasToBase64(canvas) {
   return dataUrl.split(',')[1]
 }
 
-export async function renderPdfPageImages(file, pageNumbers, scale = 2) {
+export async function renderPdfPageImages(file, pageNumbers, scale = 3) {
   const buffer = await file.arrayBuffer()
   const loadingTask = getDocument({ data: new Uint8Array(buffer) })
   const pdf = await loadingTask.promise

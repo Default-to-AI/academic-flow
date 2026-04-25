@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { jsonrepair } from 'jsonrepair'
 import systemPromptText from '../../prompts/academic-flow.system.md?raw'
 import {
   normalizeAcademicDocument,
@@ -16,27 +17,21 @@ import { buildSectionInputs, buildSourceOutline } from './sourceOutline'
 
 const DEFAULT_MODEL = 'gemini-2.5-flash'
 
-function fixBackslashes(text) {
-  return text.replace(/\\([^"\\\/bfnrtu\d])/g, '\\\\$1')
-}
-
 function extractJSON(text) {
   try { return JSON.parse(text) } catch {}
-
-  try { return JSON.parse(fixBackslashes(text)) } catch {}
 
   const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/)
   if (fenced) {
     try { return JSON.parse(fenced[1]) } catch {}
-    try { return JSON.parse(fixBackslashes(fenced[1])) } catch {}
+    try { return JSON.parse(jsonrepair(fenced[1])) } catch {}
   }
+
+  try { return JSON.parse(jsonrepair(text)) } catch {}
 
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start !== -1 && end !== -1) {
-    const slice = text.slice(start, end + 1)
-    try { return JSON.parse(slice) } catch {}
-    try { return JSON.parse(fixBackslashes(slice)) } catch {}
+    try { return JSON.parse(jsonrepair(text.slice(start, end + 1))) } catch {}
   }
 
   throw new Error('התגובה מה-API אינה JSON תקין')
