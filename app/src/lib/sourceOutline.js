@@ -30,7 +30,10 @@ function countWords(text) {
 }
 
 function isNoiseLine(line) {
-  return /^\d+$/.test(line) || /^עמוד\s+\d+$/i.test(line) || /^page\s+\d+$/i.test(line)
+  return /^\d+$/.test(line)
+    || /^עמוד\s+\d+$/i.test(line)
+    || /^page\s+\d+$/i.test(line)
+    || /^-\s*\d+\s*-$/.test(line)
 }
 
 function isCompactLine(line) {
@@ -56,6 +59,7 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
   if (!/[,;]|:\s+\S{4,}/.test(line)) score += 1
   if (hasContextCue) score += 1
   if (SENTENCE_START_WORDS.some(word => line.startsWith(`${word} `))) score -= 3
+  if (/^[•·–—●▪▸►]/.test(line)) score -= 4
 
   if (line.length > 85) score -= 3
   if (countWords(line) > 12) score -= 3

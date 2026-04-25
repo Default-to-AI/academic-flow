@@ -21,8 +21,8 @@ describe('processSections', () => {
   it('retries only the malformed section when math audit fails', async () => {
     const generateSection = vi
       .fn()
-      .mockResolvedValueOnce({ header: 'תרגילים', content: 'f(x)= \\begin{cases}', common_mistakes: 'x', example: 'y' })
-      .mockResolvedValueOnce({ header: 'תרגילים', content: '$$f(x)=x$$', common_mistakes: 'x', example: 'y' })
+      .mockResolvedValueOnce({ header: 'תרגילים', body: 'f(x)= \\begin{cases}' })
+      .mockResolvedValueOnce({ header: 'תרגילים', body: '$$f(x)=x$$' })
 
     const result = await processSections({
       sections: [{ id: 'h2-1', heading: 'תרגילים', sourceText: '...' }],
@@ -31,14 +31,14 @@ describe('processSections', () => {
     })
 
     expect(generateSection).toHaveBeenCalledTimes(2)
-    expect(result[0].content).toBe('$$f(x)=x$$')
+    expect(result[0].body).toBe('$$f(x)=x$$')
   })
 
   it('retries when the section request throws and then succeeds', async () => {
     const generateSection = vi
       .fn()
       .mockRejectedValueOnce(new Error('503 overloaded'))
-      .mockResolvedValueOnce({ header: 'תרגילים', content: '$$f(x)=x$$', common_mistakes: 'x', example: 'y' })
+      .mockResolvedValueOnce({ header: 'תרגילים', body: '$$f(x)=x$$' })
 
     const result = await processSections({
       sections: [{ id: 'h2-1', heading: 'תרגילים', sourceText: '...' }],
@@ -69,15 +69,11 @@ describe('processSections', () => {
       .fn()
       .mockResolvedValueOnce({
         header: 'תרגילים',
-        content: 'DETERMINING SIGN OF INFINITY: The sign of the infinite limit is determined by the sign of the numerator and denominator.',
-        common_mistakes: 'Keep the signs consistent on both sides of the point.',
-        example: 'If x tends to a, compare the signs.',
+        body: 'DETERMINING SIGN OF INFINITY: The sign of the infinite limit is determined by the sign of the numerator and denominator. Keep the signs consistent on both sides of the point. If x tends to a, compare the signs.',
       })
       .mockResolvedValueOnce({
         header: 'תרגילים',
-        content: 'סימן האינסוף נקבע לפי סימן המונה וסימן המכנה.',
-        common_mistakes: 'אין לשכוח לבדוק גבולות חד-צדדיים.',
-        example: 'בודקים את הסימנים משמאל ומימין.',
+        body: 'סימן האינסוף נקבע לפי סימן המונה וסימן המכנה. אין לשכוח לבדוק גבולות חד-צדדיים. בודקים את הסימנים משמאל ומימין.',
       })
 
     const result = await processSections({
@@ -87,15 +83,13 @@ describe('processSections', () => {
     })
 
     expect(generateSection).toHaveBeenCalledTimes(2)
-    expect(result[0].content).toContain('סימן האינסוף')
+    expect(result[0].body).toContain('סימן האינסוף')
   })
 
-  it('accepts sections with empty optional blocks when content is present', async () => {
+  it('accepts a section with non-empty body', async () => {
     const generateSection = vi.fn().mockResolvedValue({
       header: 'הגדרה',
-      content: 'הפונקציה מוגדרת לכל $x > 0$.',
-      common_mistakes: '',
-      example: '',
+      body: 'הפונקציה מוגדרת לכל $x > 0$.',
     })
 
     const result = await processSections({
@@ -106,8 +100,7 @@ describe('processSections', () => {
 
     expect(generateSection).toHaveBeenCalledTimes(1)
     expect(result[0]._fallback).toBeUndefined()
-    expect(result[0].common_mistakes).toBe('')
-    expect(result[0].example).toBe('')
+    expect(result[0].body).toBe('הפונקציה מוגדרת לכל $x > 0$.')
   })
 
   it('stops immediately when the processing signal is aborted', async () => {
@@ -134,7 +127,7 @@ describe('processSections', () => {
     const generated = {
       title: 'רציפות ואי רציפות',
       sections: [
-        { header: 'תרגילים', content: 'f(x)= \\begin{cases}', common_mistakes: 'x', example: 'y' },
+        { header: 'תרגילים', body: 'f(x)= \\begin{cases}' },
       ],
     }
 
@@ -144,7 +137,7 @@ describe('processSections', () => {
     ]
 
     const audit = auditGeneratedDocument({ outline, generated })
-    const math = auditMathBlocks(generated.sections[0].content)
+    const math = auditMathBlocks(generated.sections[0].body)
 
     expect(audit.missingHeaders).toEqual(['אם יש זמן פותרים לבד'])
     expect(math.rawLatexLeaks).toEqual(['\\begin{cases}'])

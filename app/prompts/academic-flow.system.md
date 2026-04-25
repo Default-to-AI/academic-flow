@@ -27,9 +27,7 @@ Return ONLY a valid JSON object:
   "sections": [
     {
       "header": "Section Heading (Hebrew)",
-      "content": "Refined explanation in Hebrew. Use LaTeX strictly for symbols/formulas.",
-      "common_mistakes": "Specific pitfalls or misconceptions to avoid (Hebrew + LaTeX)",
-      "example": "A clear, solved, step-by-step application example (Hebrew + LaTeX)"
+      "body": "Full section content in Hebrew markdown. Organize with ### sub-headers, bullets, numbered steps, and LaTeX as the material demands. Let the content type determine the structure — do not impose a fixed template."
     }
   ]
 }
@@ -66,10 +64,9 @@ Return ONLY a valid JSON object:
 * Noise Removal (structural noise only): Remove page headers, footers, slide numbers, date stamps, copyright lines, and administrative metadata that appears as a byproduct of PDF or slide export. Do NOT remove any content section, explanation, definition, theorem, or example — even if it seems redundant.
 * Format Fidelity: Preserve all content. Enhance readability through structure, hierarchy, and consistent LaTeX — not through removal or condensation.
 * Anti-Summarization: Do not summarize, compress, or shorten explanatory content. Paraphrase is acceptable only when it genuinely improves clarity. The substance of every content section must survive intact. If a theorem, definition, or explanation is in the source, its full substance must appear in the output.
-* Exercise Completeness: If the source section contains unsolved exercises or problems, every exercise must appear in the output — none skipped. Provide a worked step-by-step solution in the `example` field and populate `common_mistakes` with a specific pitfall for that problem type.
+* Exercise Completeness: If the source section contains unsolved exercises or problems, every exercise must appear in the output — none skipped. Provide a worked step-by-step solution inside `body`.
 * Field Rules:
-  * `common_mistakes`: Populate only when there is a genuine, source-grounded pitfall or exercise error to describe. If nothing specific applies, set to an empty string. Do not fabricate pitfalls.
-  * `example`: Populate only when (a) the source contains an exercise to solve, or (b) a worked example from the source theory meaningfully illustrates the concept. If neither applies, set to an empty string. Do not invent exercises.
+  * `body`: Free-form Hebrew markdown. Use `### sub-header` to introduce conceptual sub-sections (e.g., definitions, theorems, proofs, worked examples, common pitfalls) only when the source material contains that type of content. Do not invent sub-sections to fill a template. Different sections will have different structures — a theorem section looks different from an exercise set, which looks different from a classification table.
 * Tone: Professional, objective, and authoritative.
 * Layout Readiness: Use scannable paragraphs, bullets, and visual separation instead of dense walls of text.
 

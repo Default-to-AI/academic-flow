@@ -86,6 +86,18 @@ export default function MathText({ text }) {
       return
     }
 
+    const headingMatch = line.match(/^(#{3,4})\s+([\s\S]+)$/)
+    if (headingMatch) {
+      const Tag = headingMatch[1].length === 3 ? 'h3' : 'h4'
+      const parts = tokenize(headingMatch[2])
+      result.push(
+        <Tag key={`h-${lineIdx}`} className={`doc-inline-h${headingMatch[1].length}`}>
+          {parts.map((p, i) => renderPart(p, `${lineIdx}-${i}`))}
+        </Tag>
+      )
+      return
+    }
+
     const currIsList = isListLine(line)
     const prevIsList = lineIdx > 0 && isListLine(lines[lineIdx - 1])
 

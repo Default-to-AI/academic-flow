@@ -12,8 +12,8 @@ describe('auditGeneratedDocument', () => {
     const generated = {
       title: 'רציפות ואי רציפות',
       sections: [
-        { header: 'תרגילים', content: '...', common_mistakes: 'x', example: 'y' },
-        { header: 'דוגמה חדשה', content: '...', common_mistakes: 'x', example: 'y' },
+        { header: 'תרגילים', body: '...' },
+        { header: 'דוגמה חדשה', body: '...' },
       ],
     }
 
@@ -25,18 +25,17 @@ describe('auditGeneratedDocument', () => {
     })
   })
 
-  it('flags empty content blocks but allows optional fields to stay empty', () => {
+  it('flags empty body blocks', () => {
     const generated = {
       title: 'רציפות ואי רציפות',
       sections: [
-        { header: 'תרגילים', content: '', common_mistakes: 'x', example: 'y' },
-        { header: 'אם יש זמן פותרים לבד', content: 'x', common_mistakes: '', example: 'y' },
-        { header: 'דוגמה נוספת', content: 'x', common_mistakes: '', example: '' },
+        { header: 'תרגילים', body: '' },
+        { header: 'אם יש זמן פותרים לבד', body: 'x' },
       ],
     }
 
     expect(auditGeneratedDocument({ outline, generated }).emptyBlocks).toEqual([
-      { header: 'תרגילים', field: 'content' },
+      { header: 'תרגילים', field: 'body' },
     ])
   })
 })

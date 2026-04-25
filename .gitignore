@@ -144,3 +144,5 @@ vite.config.ts.timestamp-*
 # graphify
 .graphify
 *graphify*
+.gstack/
+temp/
