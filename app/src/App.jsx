@@ -4,7 +4,7 @@ import Settings, { getApiKey } from './components/Settings.jsx'
 import AcademicDocument from './components/AcademicDocument.jsx'
 import RenderDebugger from './components/RenderDebugger.jsx'
 import DevPanel from './components/DevPanel.jsx'
-import { processDocument } from './lib/gemini.js'
+import { previewDocument, processDocument } from './lib/gemini.js'
 import { parsePageSelection } from './lib/pageSelection.js'
 import { getPdfPageCount, isPdfFile } from './lib/pdfText.js'
 import { version } from '../package.json'
@@ -19,6 +19,7 @@ export default function App() {
   const [debugMode, setDebugMode] = useState(false)
   const [showDevPanel, setShowDevPanel] = useState(false)
   const [debugInfo, setDebugInfo] = useState(null)
+  const [sectionPreview, setSectionPreview] = useState(null)
   const [selectedFile, setSelectedFile] = useState(null)
   const [pageCount, setPageCount] = useState(null)
   const [loadingFileMeta, setLoadingFileMeta] = useState(false)
@@ -57,6 +58,35 @@ export default function App() {
       setStatus('error')
     } finally {
       setLoadingFileMeta(false)
+    }
+  }
+
+  const handlePreview = async () => {
+    if (!selectedFile) return
+    setStatus('processing')
+    setError('')
+    setSectionPreview(null)
+    const controller = new AbortController()
+    activeController.current = controller
+    try {
+      let pageNumbers = null
+      if (isPdfFile(selectedFile) && useCustomPages) {
+        pageNumbers = parsePageSelection(pageSelectionInput, pageCount)
+      }
+      const { title, sectionInputs } = await previewDocument(selectedFile, {
+        pageNumbers,
+        signal: controller.signal,
+      })
+      if (activeController.current !== controller) return
+      setSectionPreview({ title, sectionInputs })
+      setStatus('preview')
+    } catch (e) {
+      if (activeController.current !== controller) return
+      if (e?.name === 'AbortError' || controller.signal.aborted) { setStatus('idle'); return }
+      setError(e.message || 'שגיאה בקריאת הקובץ')
+      setStatus('error')
+    } finally {
+      if (activeController.current === controller) activeController.current = null
     }
   }
 
@@ -139,6 +169,7 @@ export default function App() {
     setAuditSummary([])
     setDebugInfo(null)
     setShowDevPanel(false)
+    setSectionPreview(null)
     setSelectedFile(null)
     setPageCount(null)
     setLoadingFileMeta(false)
@@ -213,8 +244,61 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Section Inputs Preview (hidden on print) ── */}
+      {!debugMode && status === 'preview' && sectionPreview && (
+        <main className="no-print max-w-3xl mx-auto px-6 py-10 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Pre-flight Inspection</p>
+              <h2 className="text-lg font-semibold text-slate-900">{sectionPreview.title}</h2>
+              <p className="text-sm text-slate-500 mt-0.5">{sectionPreview.sectionInputs.length} sections queued</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setSectionPreview(null); setStatus('idle') }}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                חזור
+              </button>
+              <button
+                onClick={() => { setSectionPreview(null); setStatus('idle'); setTimeout(handleProcess, 0) }}
+                className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              >
+                שלח ל-Gemini ←
+              </button>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {sectionPreview.sectionInputs.map((section, i) => {
+              const lines = (section.sourceText || '').split('\n')
+              const hintLines = lines.filter(l => l.startsWith('[Size:'))
+              return (
+                <details key={section.id || i} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <summary className="flex items-center gap-3 px-5 py-3.5 cursor-pointer select-none list-none">
+                    <span className="text-xs font-mono font-bold text-slate-400 w-12 shrink-0">{section.level}</span>
+                    <span className="font-medium text-slate-900 flex-1 text-sm">{section.heading}</span>
+                    <span className="text-xs text-slate-400 shrink-0">עמ׳ {section.page}</span>
+                    {hintLines.length > 0 && (
+                      <span className="text-xs bg-amber-100 text-amber-700 font-mono px-2 py-0.5 rounded-full shrink-0">
+                        {hintLines.length} hints
+                      </span>
+                    )}
+                    <span className="text-slate-300 text-xs shrink-0 mr-1">▼</span>
+                  </summary>
+                  <div className="px-5 pb-4 pt-1">
+                    <pre className="text-xs font-mono text-slate-600 bg-slate-50 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto" dir="ltr">
+                      {section.sourceText || '(empty)'}
+                    </pre>
+                  </div>
+                </details>
+              )
+            })}
+          </div>
+        </main>
+      )}
+
       {/* ── Upload / Processing / Error (hidden on print) ── */}
-      {!debugMode && status !== 'done' && (
+      {!debugMode && status !== 'done' && status !== 'preview' && (
         <main className="no-print max-w-2xl mx-auto px-6 py-12">
           {status === 'idle' && (
             <div className="space-y-4">
@@ -320,12 +404,21 @@ export default function App() {
                         ? 'אפשר לבחור עמודים ספציפיים כדי לדבג קטע נקודתי בלי לשלוח את כל המסמך.'
                         : 'לקבצים שאינם PDF אין בחירת עמודים.'}
                     </p>
-                    <button
-                      onClick={handleProcess}
-                      className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-                    >
-                      עבד את הקובץ
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handlePreview}
+                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-600 transition-colors hover:bg-slate-50"
+                        title="הצג את הטקסט שיישלח ל-Gemini לפני העיבוד"
+                      >
+                        בדוק תוכן
+                      </button>
+                      <button
+                        onClick={handleProcess}
+                        className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                      >
+                        עבד את הקובץ
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

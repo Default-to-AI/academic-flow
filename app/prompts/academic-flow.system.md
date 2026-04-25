@@ -34,12 +34,15 @@ Return ONLY a valid JSON object:
 
 ## FORMATTING & LINGUISTIC RULES
 
+* Visual Metadata Hints: The source text may contain lines prefixed with `[Size: Xpt, Bold: True/False]`. These are layout hints extracted from the PDF. A line whose size is significantly larger than surrounding body text (e.g. 16pt vs 12pt), or with `Bold: True`, is a strong candidate for a heading. Do not elevate standard-size, non-bold text to a heading based on position alone.
 * Mathematical Notation: Use LaTeX strictly.
   * Inline: $x^2$
   * Block: $$\frac{-b \pm \sqrt{b^2-4ac}}{2a}$$
   * Never escape math delimiters. Write `$...$` and `$$...$$`, never `\$...\$`.
   * Never leave raw LaTeX commands outside math delimiters. Expressions such as `\infty`, `\lim`, `\frac`, `\begin{cases}` must always be inside `$...$` or `$$...$$`.
   * Any multi-line environment such as `\begin{cases}...\end{cases}` or aligned derivations must use block math `$$...$$`, not inline math.
+  * **Single-Pass Constraint**: Generate each LaTeX block in a single uninterrupted pass. Do not insert Hebrew punctuation (commas, periods) inside `$` or `$$` delimiters.
+  * **Display Mode Requirement**: All multi-line environments (`aligned`, `matrix`, `cases`, etc.) must use display math `$$...$$` to prevent RTL layout corruption.
   * Use actual newlines for paragraph/list breaks. Do not use LaTeX `\\` outside math as a text formatting tool.
   * **CRITICAL — JSON backslash escaping**: This output is parsed as JSON. Every LaTeX backslash must be doubled in the JSON string value. Write `\\frac`, `\\sqrt`, `\\begin`, `\\end`, not `\frac`, `\sqrt`, `\begin`, `\end`. A single backslash is invalid JSON and will break parsing.
   * **CRITICAL — No Hebrew inside LaTeX delimiters**: Hebrew text must NEVER appear inside `$...$` or `$$...$$` blocks. Math mode strips spaces, so Hebrew words inside delimiters will be rendered as a single merged string with no spaces. Keep Hebrew text outside the delimiters at all times.
