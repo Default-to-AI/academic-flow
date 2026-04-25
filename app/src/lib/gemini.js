@@ -148,6 +148,37 @@ export function buildSelectedPageInputs(pages, pageNumbers) {
   }))
 }
 
+const MAX_PAGES_PER_SECTION = 2
+
+function splitLargeSections(sectionInputs, allPages) {
+  const totalPages = allPages.length
+  const result = []
+
+  sectionInputs.forEach((section, index) => {
+    const nextSection = sectionInputs[index + 1]
+    const nextPage = nextSection ? nextSection.page : totalPages + 1
+    const pageSpan = nextPage - section.page
+
+    if (pageSpan <= MAX_PAGES_PER_SECTION) {
+      result.push(section)
+      return
+    }
+
+    for (let pageNum = section.page; pageNum < nextPage && pageNum <= totalPages; pageNum++) {
+      const pageText = allPages[pageNum - 1] || ''
+      result.push({
+        id: `${section.id}-p${pageNum}`,
+        level: section.level,
+        heading: pageNum === section.page ? section.heading : getSelectedPageHeading(pageText),
+        page: pageNum,
+        sourceText: pageText,
+      })
+    }
+  })
+
+  return result
+}
+
 async function extractSourcePages(file) {
   if (isPdfFile(file)) {
     return extractPdfPages(file)
@@ -278,9 +309,13 @@ async function buildSectionInputPlan(file, options = {}) {
     : (outlineHasContentSections ? outline : getFallbackOutline(pages, file.name))
   const title = getTitleFromOutline(effectiveOutline, file.name)
   const contentOutline = effectiveOutline.filter(item => item.level !== 'H1')
-  const sectionInputs = usingSelectedPdfPages
+  const rawSectionInputs = usingSelectedPdfPages
     ? selectedPageInputs
     : buildSectionInputs(pages, contentOutline.length > 0 ? contentOutline : effectiveOutline)
+
+  const sectionInputs = (!usingSelectedPdfPages && isPdfFile(file))
+    ? splitLargeSections(rawSectionInputs, extractedPages)
+    : rawSectionInputs
 
   return { title, sectionInputs, effectiveOutline }
 }
