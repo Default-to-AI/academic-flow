@@ -30,10 +30,18 @@ function countWords(text) {
 }
 
 function isNoiseLine(line) {
-  return /^\d+$/.test(line)
-    || /^עמוד\s+\d+$/i.test(line)
-    || /^page\s+\d+$/i.test(line)
-    || /^-\s*\d+\s*-$/.test(line)
+  // Page number patterns
+  if (/^\d+$/.test(line)) return true
+  if (/^עמוד\s+\d+$/i.test(line)) return true
+  if (/^page\s+\d+$/i.test(line)) return true
+  if (/^-\s*\d+\s*-$/.test(line)) return true
+  // Fraction/formula fragments: only digits, math symbols, spaces — no Hebrew
+  if (/^[\d\s\u{1D400}-\u{1D7FF}+\-*/=<>(){}\[\].,!?|^~]+$/u.test(line)) return true
+  return false
+}
+
+function hasHebrew(text) {
+  return /[\u05D0-\u05EA]/.test(text)
 }
 
 function isCompactLine(line) {
@@ -56,13 +64,18 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
   const parsed = extractHintAndText(line);
   const rawText = parsed.text;
 
-  if (!rawText || isNoiseLine(rawText)) return Number.NEGATIVE_INFINITY;
+  if (!rawText || isNoiseLine(rawText)) return Number.NEGATIVE_INFINITY
 
-  let score = 0;
+  // Lines with no Hebrew can never be headings in this document type.
+  // They are invariably formula rows, fraction fragments, or math expressions.
+  if (!hasHebrew(rawText)) return Number.NEGATIVE_INFINITY
+
   const hasKeyword = HEADING_KEYWORDS.some(keyword => rawText.includes(keyword));
   const hasContextCue =
     Boolean(nextLine && nextLine.length >= line.length + 12) ||
     Boolean(previousLine && previousLine.length >= line.length + 20);
+
+  let score = 0
 
   // --- Font hint bonuses (additive, NOT hard bypasses) ---
   // A big size step is a strong positive signal but can still be overridden

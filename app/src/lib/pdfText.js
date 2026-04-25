@@ -25,36 +25,60 @@ function isBoldFont(fontName) {
   return /bold|heavy|black/i.test(fontName || '')
 }
 
-function groupItemsIntoLines(items) {
-  const lines = []
-  let currentLine = []
+/**
+ * Group PDF items into lines using Y-coordinate proximity.
+ * Uses a two-pass approach:
+ *   Pass 1 – split by Y gaps > 4px (tight, catches subscripts as separate groups)
+ *   Pass 2 – merge any group where ALL items are sub/superscript-sized
+ *             (smaller than the body median) into the nearest preceding full line.
+ * This prevents '𝑥 → 0' subscript rows, lone '1', '7' fraction fragments, etc.
+ * from becoming isolated lines that the section scorer mislabels as headings.
+ */
+function groupItemsIntoLines(items, medianSize) {
+  // --- Pass 1: split by Y proximity ---
+  const rawGroups = []
+  let currentGroup = []
   let lastY = null
 
   for (const item of items) {
     if (!('str' in item)) continue
     const y = Math.round(item.transform[5])
-
     if (lastY !== null && Math.abs(lastY - y) > 4) {
-      if (currentLine.length > 0) lines.push(currentLine)
-      currentLine = []
+      if (currentGroup.length > 0) rawGroups.push({ items: currentGroup, y: lastY })
+      currentGroup = []
     }
-
-    currentLine.push(item)
+    currentGroup.push(item)
     lastY = y
   }
+  if (currentGroup.length > 0) rawGroups.push({ items: currentGroup, y: lastY })
 
-  if (currentLine.length > 0) lines.push(currentLine)
-  return lines
+  // --- Pass 2: merge sub/superscript-only rows into parent ---
+  const base = medianSize ?? 12
+  const merged = []
+
+  for (const group of rawGroups) {
+    const maxSize = Math.max(...group.items.map(estimateItemFontSize))
+    const isSubSuperOnly = maxSize < base - 1   // clearly smaller than body text
+
+    if (isSubSuperOnly && merged.length > 0) {
+      // Attach to the last real line (it's a subscript/superscript row)
+      merged[merged.length - 1].push(...group.items)
+    } else {
+      merged.push([...group.items])
+    }
+  }
+
+  return merged
 }
 
 /**
- * Compute the median font size across all lines on a page.
- * This gives us the "body text" baseline so we can detect headers
- * by relative size rather than a hard global threshold.
+ * Compute the median font size across all raw items on a page.
+ * Done before line grouping so we have the baseline to classify sub/superscripts.
  */
-function computeMedianFontSize(lineGroups) {
-  const sizes = lineGroups
-    .map(items => Math.max(...items.map(estimateItemFontSize)))
+function computeMedianFontSize(items) {
+  const sizes = items
+    .filter(item => 'str' in item && item.str.trim())
+    .map(estimateItemFontSize)
     .filter(s => s > 0)
     .sort((a, b) => a - b)
   if (sizes.length === 0) return 12
@@ -67,11 +91,8 @@ function computeMedianFontSize(lineGroups) {
 /**
  * A line earns a font hint only when it is:
  *   - At least 2pt larger than the page median (clear size step-up), OR
- *   - Bold AND at least 1pt larger than the median (bold body copy at same
- *     size as surrounding text does NOT get a hint).
- *
- * The hint is still prepended so the scoring heuristic can use it,
- * but the bar is now set relative to each page's own body text.
+ *   - Bold AND at least 1pt larger than the median.
+ * Bold body copy at the same size as surrounding text does NOT get a hint.
  */
 function lineToText(lineItems, medianSize) {
   const text = normalizeLine(lineItems.map(item => item.str).join(' '))
@@ -82,8 +103,8 @@ function lineToText(lineItems, medianSize) {
   const base = medianSize ?? 12
 
   const sizeStep = fontSize - base
-  const isLarger = sizeStep >= 2          // meaningfully bigger than body
-  const isBoldAndBigger = bold && sizeStep >= 1  // bold only counts when also bigger
+  const isLarger = sizeStep >= 2
+  const isBoldAndBigger = bold && sizeStep >= 1
 
   if (isLarger || isBoldAndBigger) {
     return `[Size: ${fontSize}pt, Bold: ${bold}] ${text}`
@@ -100,8 +121,8 @@ export async function extractPdfPages(file) {
   for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
     const page = await pdf.getPage(pageIndex)
     const textContent = await page.getTextContent()
-    const lineGroups = groupItemsIntoLines(textContent.items)
-    const medianSize = computeMedianFontSize(lineGroups)
+    const medianSize = computeMedianFontSize(textContent.items)
+    const lineGroups = groupItemsIntoLines(textContent.items, medianSize)
     const lines = lineGroups.map(items => lineToText(items, medianSize)).filter(Boolean)
     pages.push(lines.join('\n').trim())
   }
