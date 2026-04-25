@@ -332,16 +332,25 @@ export async function processDocument(file, apiKey, options = {}) {
       },
     })
 
+    // Track which pages have already had their image consumed by a section.
+    // Only the FIRST section on a given page gets the page image; subsequent
+    // sections on the same page use outline (sourceText-only) mode.  Without
+    // this guard every co-page section sees the same full-page image and the
+    // AI regenerates the entire page content for each one, producing duplicates.
+    const pagesUsedForImage = new Set()
+
     const sections = await processSections({
       sections: sectionInputs,
       onStatus: pushStatus,
       generateSection: async (section, attempt, errorContext) => {
         throwIfAborted(signal)
         const pageImage = renderedPageImageMap.get(section.page)
-        const mode = pageImage ? 'page' : 'outline'
+        const canUseImage = pageImage && !pagesUsedForImage.has(section.page)
+        if (canUseImage) pagesUsedForImage.add(section.page)
+        const mode = canUseImage ? 'page' : 'outline'
         const parts = [buildDocumentPrompt(section, attempt, mode, errorContext)]
 
-        if (pageImage) {
+        if (canUseImage) {
           parts.unshift({
             inlineData: {
               mimeType: pageImage.mimeType,

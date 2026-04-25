@@ -1,6 +1,11 @@
 const EXERCISE_HEADING_PATTERN = /^(?:\d+[.)-]|[א-ת][.)])\s+\S/
 const SELF_PRACTICE_PATTERN = /^אם יש זמן/
-const SENTENCE_START_WORDS = ['כאשר', 'אם', 'לכן', 'כדי', 'משום', 'בגלל', 'לאחר', 'לפני', 'במילים', 'נסמן', 'נגדיר', 'נאמר']
+const SENTENCE_START_WORDS = [
+  'כאשר', 'אם', 'לכן', 'כדי', 'משום', 'בגלל', 'לאחר', 'לפני', 'במילים',
+  'נסמן', 'נגדיר', 'נאמר', 'נבדוק', 'נחשב', 'נציב', 'נצמצם', 'נפרק',
+  'נפתח', 'נבחן', 'נקבל', 'נשתמש', 'נדרוש', 'נחלק', 'נכפיל', 'נסיק',
+  'מכיוון', 'מאחר', 'עבור', 'נתון', 'נתונה', 'נתוני',
+]
 const HEADING_KEYWORDS = [
   'מבוא',
   'רקע',
@@ -77,6 +82,19 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
 
   let score = 0
 
+  // A line needs at least one strong structural signal to qualify as a heading.
+  // Without one, short Hebrew phrases that happen to be compact and unpunctuated
+  // (mid-solution labels like 'נבדוק בתפר', 'ימין', 'פתרון א') would accumulate
+  // enough layout micro-bonuses to cross the threshold despite being body text.
+  const hasStrongSignal =
+    parsed.size >= 13 ||                          // font-hint step-up
+    hasKeyword ||                                 // known section keyword
+    EXERCISE_HEADING_PATTERN.test(rawText) ||     // numbered exercise
+    SELF_PRACTICE_PATTERN.test(rawText) ||        // "אם יש זמן"
+    isFirstLineOnFirstPage                        // document title
+
+  if (!hasStrongSignal) score -= 5
+
   // --- Font hint bonuses (additive, NOT hard bypasses) ---
   // A big size step is a strong positive signal but can still be overridden
   // by the negative signals below (math, punctuation, long sentences, etc.)
@@ -114,6 +132,11 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
   if (/[\u{1D400}-\u{1D7FF}]/u.test(rawText)) score -= 5;
   // Ends with comma/semicolon typical of inline emphasis, not a heading
   if (/[,;]$/.test(rawText)) score -= 3;
+  // "משפט: פונקציה..." style — a keyword immediately followed by ': ' and
+  // substantive continuation text is a theorem/definition *statement* (body text),
+  // not a standalone section heading.  Penalise heavily so it never crosses the
+  // threshold, regardless of font-size bonuses it may have accumulated.
+  if (HEADING_KEYWORDS.some(kw => new RegExp(`^${kw}[:\s]\\s*\\S{4,}`).test(rawText))) score -= 6;
 
   if (!isFirstLineOnFirstPage && !hasKeyword && !hasContextCue) {
     score -= 3;
@@ -216,11 +239,14 @@ function sliceUntilNextHeading(pages, item, next) {
 export function buildSectionInputs(pages, outline) {
   return outline.map((item, index) => {
     const next = outline[index + 1]
+    // Strip the font-hint prefix so Gemini receives clean Hebrew text in the
+    // heading field. The raw item.text (with hint) is still used for slicing.
+    const cleanHeading = extractHintAndText(item.text).text
 
     return {
       id: item.id,
       level: item.level,
-      heading: item.text,
+      heading: cleanHeading,
       page: item.page,
       sourceText: sliceUntilNextHeading(pages, item, next),
     }
