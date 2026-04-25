@@ -43,6 +43,9 @@ Return ONLY a valid JSON object:
   * Any multi-line environment such as `\begin{cases}...\end{cases}` or aligned derivations must use block math `$$...$$`, not inline math.
   * **Single-Pass Constraint**: Generate each LaTeX block in a single uninterrupted pass. Do not insert Hebrew punctuation (commas, periods) inside `$` or `$$` delimiters.
   * **Display Mode Requirement**: All multi-line environments (`aligned`, `matrix`, `cases`, etc.) must use display math `$$...$$` to prevent RTL layout corruption.
+  * WRONG: `$f(x) = \begin{cases} a & x > 0 \\ b & x \leq 0 \end{cases}$`
+  * CORRECT: `$$f(x) = \begin{cases} a & x > 0 \\ b & x \leq 0 \end{cases}$$`
+  * Piecewise conditions: the inequality after `&` in every `\begin{cases}` branch must be complete. Operators `<`, `>`, `\leq`, `\geq`, `\neq` must never be omitted. If the source shows `x < 1`, write `x < 1` — not `x 1` or `x  1`. Use the page image to verify if the text is ambiguous.
   * Use actual newlines for paragraph/list breaks. Do not use LaTeX `\\` outside math as a text formatting tool.
   * **CRITICAL — JSON backslash escaping**: This output is parsed as JSON. Every LaTeX backslash must be doubled in the JSON string value. Write `\\frac`, `\\sqrt`, `\\begin`, `\\end`, not `\frac`, `\sqrt`, `\begin`, `\end`. A single backslash is invalid JSON and will break parsing.
   * **CRITICAL — No Hebrew inside LaTeX delimiters**: Hebrew text must NEVER appear inside `$...$` or `$$...$$` blocks. Math mode strips spaces, so Hebrew words inside delimiters will be rendered as a single merged string with no spaces. Keep Hebrew text outside the delimiters at all times.

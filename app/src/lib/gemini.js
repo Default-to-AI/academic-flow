@@ -87,6 +87,12 @@ export function normalizeModelText(text) {
     .replace(/\n+\s*\$\$/g, '\n$$')
     .replace(/\$\$\s*\$\$/g, '$$')
 
+  // Upgrade inline $\begin{cases|aligned|matrix...}\end{...}$ to block $$
+  normalized = normalized.replace(
+    /(?<!\$)\$([^$]*\\begin\{(?:cases|aligned|matrix|pmatrix|bmatrix|vmatrix|Vmatrix|align\*?)\}[\s\S]*?\\end\{(?:cases|aligned|matrix|pmatrix|bmatrix|vmatrix|Vmatrix|align\*?)\}[^$]*?)\$(?!\$)/g,
+    (_, inner) => `$$${inner}$$`,
+  )
+
   // Wrap LaTeX blocks with LRM (U+200E) to force LTR rendering inside RTL flow
   normalized = normalized.replace(/\$\$([\s\S]*?)\$\$/g, (m) => `‎${m}‎`)
   normalized = normalized.replace(/\$([^$\n]+)\$/g, (m) => `‎${m}‎`)
