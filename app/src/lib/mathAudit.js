@@ -4,6 +4,7 @@ const PROTECTED_MATH_PATTERN = /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$/g
 const RAW_LATEX_PATTERN = /(\\begin\{[a-z*]+\}|\\end\{[a-z*]+\}|\\frac|\\sqrt|\\sum|\\int)/g
 const BEGIN_PATTERN = /\\begin\{([a-z*]+)\}/g
 const END_PATTERN = /\\end\{([a-z*]+)\}/g
+const COMPLEX_ENV_NAMES = /^(?:cases|aligned|matrix|pmatrix|bmatrix|vmatrix|Vmatrix|align\*?)$/
 
 function countToken(text, token) {
   return (text.match(token) || []).length
@@ -23,6 +24,14 @@ function hasBalancedEnvironmentPairs(text) {
 
 function collectProtectedBlocks(text) {
   return text.match(PROTECTED_MATH_PATTERN) || []
+}
+
+function hasInlineComplexEnv(text) {
+  const inlineBlocks = text.match(/\$[^$\n]+?\$/g) || []
+  return inlineBlocks.some(block => {
+    const match = block.match(/\\begin\{([^}]+)\}/)
+    return match && COMPLEX_ENV_NAMES.test(match[1])
+  })
 }
 
 function runKatexSmokeTest(blocks) {
@@ -54,11 +63,13 @@ export function auditMathBlocks(text) {
   const balancedDelimiters = blockDelimiterCount % 2 === 0 && inlineDelimiterCount % 2 === 0
   const balancedEnvironments = hasBalancedEnvironmentPairs(safeText)
   const katexPassed = balancedDelimiters && balancedEnvironments && runKatexSmokeTest(protectedBlocks)
+  const inlineComplexEnv = hasInlineComplexEnv(safeText)
 
   return {
     unbalancedDelimiters: !balancedDelimiters || !balancedEnvironments,
     rawLatexLeaks,
     katexPassed,
-    passed: balancedDelimiters && balancedEnvironments && rawLatexLeaks.length === 0 && katexPassed,
+    inlineComplexEnv,
+    passed: balancedDelimiters && balancedEnvironments && rawLatexLeaks.length === 0 && katexPassed && !inlineComplexEnv,
   }
 }

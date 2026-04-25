@@ -38,6 +38,7 @@ function buildErrorContext(mathAudit, hasEmptyField, languageAuditFailed) {
   if (mathAudit?.unbalancedDelimiters) issues.push('תוחמי מתמטיקה לא מאוזנים — ודא שכל $ ו-$$ נסגרים כהלכה')
   if (mathAudit?.rawLatexLeaks?.length) issues.push(`פקודות LaTeX מחוץ לתוחמים: ${mathAudit.rawLatexLeaks.join(', ')} — העבר אותן לתוך $...$`)
   if (mathAudit && !mathAudit.katexPassed) issues.push('נוסחאה גורמת לשגיאת KaTeX — בדוק את תחביר ה-LaTeX')
+  if (mathAudit?.inlineComplexEnv) issues.push('סביבת \\begin{cases} או aligned בתוך $...$ — חובה להשתמש ב-$$...$$')
   return issues.length ? issues : null
 }
 
