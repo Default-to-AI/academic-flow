@@ -116,11 +116,27 @@ function getTitleFromOutline(outline, fileName) {
   return h1?.text || fileName.replace(/\.[^.]+$/, '')
 }
 
-function buildSelectedPageInputs(pages, pageNumbers) {
+function isSelectedPageNoise(line) {
+  return /^\d+$/.test(line)
+    || /^-\s*\d+\s*-$/.test(line)
+    || /^עמוד\s+\d+$/i.test(line)
+    || /^page\s+\d+$/i.test(line)
+}
+
+function getSelectedPageHeading(pageText) {
+  const heading = (pageText || '')
+    .split('\n')
+    .map(line => normalizeWhitespace(line))
+    .find(line => line && !isSelectedPageNoise(line) && line.length <= 90)
+
+  return heading || 'מקטע נבחר'
+}
+
+export function buildSelectedPageInputs(pages, pageNumbers) {
   return pageNumbers.map((pageNumber) => ({
     id: `page-${pageNumber}`,
     level: 'H2',
-    heading: `עמוד ${pageNumber}`,
+    heading: getSelectedPageHeading(pages[pageNumber - 1] || ''),
     page: pageNumber,
     sourceText: pages[pageNumber - 1] || '',
   }))
@@ -245,15 +261,26 @@ export async function processDocument(file, apiKey, options = {}) {
       ? pageNumbers.map(pageNumber => extractedPages[pageNumber - 1] || '').filter(Boolean)
       : extractedPages
     const usingSelectedPdfPages = isPdfFile(file) && Array.isArray(pageNumbers) && pageNumbers.length > 0
+    const selectedPageInputs = usingSelectedPdfPages
+      ? buildSelectedPageInputs(extractedPages, pageNumbers)
+      : null
     const outline = usingSelectedPdfPages ? [] : buildSourceOutline(pages)
     const outlineHasContentSections = outline.some(item => item.level !== 'H1')
     const effectiveOutline = usingSelectedPdfPages
-      ? [{ id: 'h1-1', level: 'H1', text: `${file.name} — עמודים ${pageNumbers.join(', ')}`, page: 1 }]
+      ? [
+          { id: 'h1-1', level: 'H1', text: `${file.name} — עמודים ${pageNumbers.join(', ')}`, page: 1 },
+          ...selectedPageInputs.map(section => ({
+            id: section.id,
+            level: 'H2',
+            text: section.heading,
+            page: section.page,
+          })),
+        ]
       : (outlineHasContentSections ? outline : getFallbackOutline(pages, file.name))
     const title = getTitleFromOutline(effectiveOutline, file.name)
     const contentOutline = effectiveOutline.filter(item => item.level !== 'H1')
     const sectionInputs = usingSelectedPdfPages
-      ? buildSelectedPageInputs(extractedPages, pageNumbers)
+      ? selectedPageInputs
       : buildSectionInputs(pages, contentOutline.length > 0 ? contentOutline : effectiveOutline)
     const pagesToRender = isPdfFile(file)
       ? [...new Set(sectionInputs.map(s => s.page))]

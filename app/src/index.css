@@ -74,6 +74,10 @@ body {
   margin-bottom: 1rem;
 }
 
+.doc-paragraph {
+  margin: 0 0 0.75rem;
+}
+
 .doc-inline-divider {
   border: 0;
   border-top: 1px solid #cbd5e1;

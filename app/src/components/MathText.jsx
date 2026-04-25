@@ -70,6 +70,18 @@ function isRule(line) {
   return /^---+$/.test(line.trim())
 }
 
+function flushParagraph(result, paragraphLines, keyPrefix) {
+  if (paragraphLines.length === 0) return
+  const content = paragraphLines.join(' ')
+  const parts = tokenize(content)
+  result.push(
+    <p key={`${keyPrefix}-${result.length}`} className="doc-paragraph">
+      {parts.map((p, i) => renderPart(p, `${keyPrefix}-${result.length}-${i}`))}
+    </p>,
+  )
+  paragraphLines.length = 0
+}
+
 export default function MathText({ text }) {
   if (!text) return null
 
@@ -79,19 +91,30 @@ export default function MathText({ text }) {
     .split('\n')
 
   const result = []
+  const paragraphLines = []
 
   lines.forEach((line, lineIdx) => {
+    const trimmedLine = line.trim()
+
+    if (!trimmedLine) {
+      flushParagraph(result, paragraphLines, `p-${lineIdx}`)
+      return
+    }
+
     if (isRule(line)) {
+      flushParagraph(result, paragraphLines, `p-${lineIdx}`)
       result.push(<hr key={`hr-${lineIdx}`} className="doc-inline-divider" />)
       return
     }
 
-    const headingMatch = line.match(/^(#{3,4})\s+([\s\S]+)$/)
+    const headingMatch = line.match(/^(#{1,6})\s+([\s\S]+)$/)
     if (headingMatch) {
-      const Tag = headingMatch[1].length === 3 ? 'h3' : 'h4'
+      flushParagraph(result, paragraphLines, `p-${lineIdx}`)
+      const Tag = headingMatch[1].length <= 3 ? 'h3' : 'h4'
+      const className = headingMatch[1].length <= 3 ? 'doc-inline-h3' : 'doc-inline-h4'
       const parts = tokenize(headingMatch[2])
       result.push(
-        <Tag key={`h-${lineIdx}`} className={`doc-inline-h${headingMatch[1].length}`}>
+        <Tag key={`h-${lineIdx}`} className={className}>
           {parts.map((p, i) => renderPart(p, `${lineIdx}-${i}`))}
         </Tag>
       )
@@ -99,16 +122,17 @@ export default function MathText({ text }) {
     }
 
     const currIsList = isListLine(line)
-    const prevIsList = lineIdx > 0 && isListLine(lines[lineIdx - 1])
-
-    // <br> only between non-list lines — list items are display:block and handle their own line breaks
-    if (lineIdx > 0 && !currIsList && !prevIsList) {
-      result.push(<br key={`br-${lineIdx}`} />)
-    }
 
     const indentedMatch = line.match(/^( {4,})\*\s+([\s\S]+)$/)
     const bulletMatch = !indentedMatch && line.match(/^\*\s+([\s\S]+)$/)
     const numberedMatch = !indentedMatch && !bulletMatch && line.match(/^(\d+)[.)]\s+([\s\S]+)$/)
+
+    if (!currIsList) {
+      paragraphLines.push(trimmedLine)
+      return
+    }
+
+    flushParagraph(result, paragraphLines, `p-${lineIdx}`)
 
     const content = indentedMatch
       ? indentedMatch[2]
@@ -143,6 +167,8 @@ export default function MathText({ text }) {
       result.push(...rendered)
     }
   })
+
+  flushParagraph(result, paragraphLines, 'p-final')
 
   return <>{result}</>
 }

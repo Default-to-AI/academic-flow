@@ -9,7 +9,7 @@ export default function AcademicDocument({ data, auditSummary = [] }) {
           <p className="doc-subject">{data.subject_meta}</p>
         )}
         {auditSummary.length > 0 && (
-          <aside className="doc-audit-banner">
+          <aside className="doc-audit-banner no-print">
             <strong>Integrity checks</strong>
             <div className="doc-audit-list">
               {auditSummary.map((item) => (
