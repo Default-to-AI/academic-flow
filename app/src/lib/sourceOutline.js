@@ -57,13 +57,6 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
   const rawText = parsed.text;
 
   if (!rawText || isNoiseLine(rawText)) return Number.NEGATIVE_INFINITY;
-  
-  // High confidence heading based on font hints
-  if (parsed.size > 14) return 20;
-  if (parsed.size > 12 && parsed.bold) return 15;
-
-  if (EXERCISE_HEADING_PATTERN.test(rawText)) return 10;
-  if (SELF_PRACTICE_PATTERN.test(rawText)) return 10;
 
   let score = 0;
   const hasKeyword = HEADING_KEYWORDS.some(keyword => rawText.includes(keyword));
@@ -71,6 +64,25 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
     Boolean(nextLine && nextLine.length >= line.length + 12) ||
     Boolean(previousLine && previousLine.length >= line.length + 20);
 
+  // --- Font hint bonuses (additive, NOT hard bypasses) ---
+  // A big size step is a strong positive signal but can still be overridden
+  // by the negative signals below (math, punctuation, long sentences, etc.)
+  if (parsed.size > 0) {
+    // Treat the median body size as ~12pt; reward genuine step-ups
+    // (these numbers are calibrated assuming pdfText.js already filtered
+    //  lines that are NOT bigger than median — so any hinted line is already
+    //  at least 2pt above body text)
+    if (parsed.size >= 18) score += 10;       // clearly a section title
+    else if (parsed.size >= 15) score += 7;   // likely a heading
+    else if (parsed.size >= 13) score += 4;   // possible subheading
+  }
+  if (parsed.bold) score += 3;  // bold alone is only a weak positive
+
+  // --- Pattern shortcuts (still high confidence) ---
+  if (EXERCISE_HEADING_PATTERN.test(rawText)) score += 8;
+  if (SELF_PRACTICE_PATTERN.test(rawText)) score += 8;
+
+  // --- Layout / content bonuses ---
   if (isFirstLineOnFirstPage && isCompactLine(rawText)) score += 4;
   if (isCompactLine(rawText)) score += 2;
   if (countWords(rawText) <= 5) score += 1;
@@ -78,21 +90,23 @@ function scoreHeadingCandidate({ line, previousLine, nextLine, isFirstLineOnFirs
   if (!/[.!?]$/.test(rawText)) score += 1;
   if (!/[,;]|:\s+\S{4,}/.test(rawText)) score += 1;
   if (hasContextCue) score += 1;
-  if (SENTENCE_START_WORDS.some(word => rawText.startsWith(`${word} `))) score -= 3;
-  if (/^[•·–—●▪▸►]/.test(rawText)) score -= 4;
 
-  if (rawText.length > 85) score -= 3;
-  if (countWords(rawText) > 12) score -= 3;
-  if (/[=<>+\-/*→←↔⇒⇔∈∉∀∃]/.test(rawText)) score -= 2;
-  if (/[\u{1D400}-\u{1D7FF}]/u.test(rawText)) score -= 4;
+  // --- Penalty signals ---
+  if (SENTENCE_START_WORDS.some(word => rawText.startsWith(`${word} `))) score -= 4;
+  if (/^[•·–—●▪▸►]/.test(rawText)) score -= 4;
+  if (rawText.length > 85) score -= 4;
+  if (countWords(rawText) > 12) score -= 4;
+  // Math / formula content strongly suggests body text, not a heading
+  if (/[=<>+\-/*→←↔⇒⇔∈∉∀∃]/.test(rawText)) score -= 4;
+  if (/[\u{1D400}-\u{1D7FF}]/u.test(rawText)) score -= 5;
+  // Ends with comma/semicolon typical of inline emphasis, not a heading
+  if (/[,;]$/.test(rawText)) score -= 3;
 
   if (!isFirstLineOnFirstPage && !hasKeyword && !hasContextCue) {
     score -= 3;
   }
 
   if (countWords(rawText) === 1 && !hasKeyword && !EXERCISE_HEADING_PATTERN.test(rawText)) score -= 3;
-
-  if (parsed.bold) score += 5;
 
   return score;
 }
@@ -115,7 +129,7 @@ export function buildSourceOutline(pages) {
         isFirstLineOnFirstPage: pageIndex === 0 && lineIndex === 0,
       })
 
-      if (score < 4) return
+      if (score < 5) return
 
       const parsed = extractHintAndText(line);
       const level = !detectedTitle
