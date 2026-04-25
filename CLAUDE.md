@@ -4,7 +4,7 @@ Quick orientation for Claude-style agents:
 
 - Product work starts in `app/`.
 - Runtime prompt lives at `app/prompts/academic-flow.system.md`.
-- Agent tooling belongs in `ai-agents/` or `skills/`, not inside `app/`.
+- Agent tooling belongs in `agents/` or `.claude/skills/`, not inside `app/`.
 - Read `AGENTS.md` and `docs/project-structure.md` before broad restructuring.
 - Always reply in English, even if the user writes in Hebrew. Do not switch languages.
 
@@ -107,3 +107,4 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+- Pipeline audit, RTL/LaTeX bugs, degraded study guide output → invoke audit
