@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import FileUpload from './components/FileUpload.jsx'
 import Settings, { getApiKey } from './components/Settings.jsx'
 import AcademicDocument from './components/AcademicDocument.jsx'
@@ -9,7 +9,7 @@ import { getPdfPageCount, isPdfFile } from './lib/pdfText.js'
 import { version } from '../package.json'
 
 export default function App() {
-  const [status, setStatus] = useState('idle') // idle | processing | done | error
+  const [status, setStatus] = useState('idle') // idle | processing | stopped | done | error
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState('')
   const [attemptLogs, setAttemptLogs] = useState([])
@@ -22,8 +22,11 @@ export default function App() {
   const [useCustomPages, setUseCustomPages] = useState(false)
   const [pageSelectionInput, setPageSelectionInput] = useState('')
   const [selectionError, setSelectionError] = useState('')
+  const activeController = useRef(null)
 
   const handleFile = async (file) => {
+    activeController.current?.abort()
+    activeController.current = null
     setStatus('idle')
     setSelectedFile(file)
     setDoc(null)
@@ -78,21 +81,49 @@ export default function App() {
     setError('')
     setAttemptLogs([])
     setAuditSummary([])
+    const controller = new AbortController()
+    activeController.current = controller
+
     try {
       const data = await processDocument(selectedFile, apiKey, {
-        onStatus: (line) => setAttemptLogs(prev => [...prev, line]),
-        onAudit: (summary) => setAuditSummary(summary),
+        onStatus: (line) => {
+          if (activeController.current === controller) {
+            setAttemptLogs(prev => [...prev, line])
+          }
+        },
+        onAudit: (summary) => {
+          if (activeController.current === controller) {
+            setAuditSummary(summary)
+          }
+        },
         pageNumbers,
+        signal: controller.signal,
       })
+      if (activeController.current !== controller) return
       setDoc(data)
       setStatus('done')
     } catch (e) {
+      if (activeController.current !== controller) return
+      if (e?.name === 'AbortError' || controller.signal.aborted) {
+        setStatus('stopped')
+        return
+      }
       setError(e.message || 'שגיאה בעיבוד הקובץ')
       setStatus('error')
+    } finally {
+      if (activeController.current === controller) {
+        activeController.current = null
+      }
     }
   }
 
+  const stopProcessing = () => {
+    activeController.current?.abort()
+  }
+
   const reset = () => {
+    activeController.current?.abort()
+    activeController.current = null
     setStatus('idle')
     setDoc(null)
     setError('')
@@ -284,6 +315,13 @@ export default function App() {
               <div className="w-11 h-11 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
               <p className="text-gray-700 font-medium">מעבד את חומר ההרצאה...</p>
               <p className="text-sm text-gray-400">עשוי לקחת מספר שניות</p>
+              <button
+                type="button"
+                onClick={stopProcessing}
+                className="mt-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-red-700"
+              >
+                עצור עיבוד
+              </button>
               {attemptLogs.length > 0 && (
                 <div className="mt-4 w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-4 text-right shadow-sm">
                   <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
@@ -298,6 +336,29 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {status === 'stopped' && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm space-y-4">
+              <p className="font-bold text-slate-800 text-lg">העיבוד נעצר</p>
+              <p className="text-sm text-slate-500">
+                הבקשות הבאות לא יישלחו. בקשה שכבר נשלחה ל-Gemini עשויה עדיין להסתיים בצד השירות.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={handleProcess}
+                  className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                >
+                  הפעל שוב
+                </button>
+                <button
+                  onClick={reset}
+                  className="rounded-xl border border-slate-200 px-5 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  בחר קובץ אחר
+                </button>
+              </div>
             </div>
           )}
 

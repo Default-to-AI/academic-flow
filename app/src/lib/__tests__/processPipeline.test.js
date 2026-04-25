@@ -110,6 +110,26 @@ describe('processSections', () => {
     expect(result[0].example).toBe('')
   })
 
+  it('stops immediately when the processing signal is aborted', async () => {
+    const controller = new AbortController()
+    const generateSection = vi.fn().mockImplementation(() => {
+      controller.abort()
+      throw new DOMException('The operation was aborted.', 'AbortError')
+    })
+
+    await expect(processSections({
+      sections: [
+        { id: 'h2-1', heading: 'נגזרות', sourceText: '...' },
+        { id: 'h2-2', heading: 'אינטגרלים', sourceText: '...' },
+      ],
+      generateSection,
+      onStatus: () => {},
+      signal: controller.signal,
+    })).rejects.toThrow('The operation was aborted.')
+
+    expect(generateSection).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects output that drops the self-practice section or leaks raw cases latex', () => {
     const generated = {
       title: 'רציפות ואי רציפות',

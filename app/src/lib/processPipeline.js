@@ -5,6 +5,20 @@ import { createAttemptLog, nowIso } from './pipelineTelemetry'
 const MAX_SECTION_ATTEMPTS = 3
 const PROTECTED_MATH_PATTERN = /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$/g
 
+export function isAbortError(error) {
+  return error?.name === 'AbortError'
+}
+
+export function createAbortError() {
+  return new DOMException('The operation was aborted.', 'AbortError')
+}
+
+export function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw createAbortError()
+  }
+}
+
 function stripMath(text) {
   return (text || '').replace(PROTECTED_MATH_PATTERN, ' ')
 }
@@ -73,15 +87,19 @@ function summarizeDocumentMath(sections) {
   return aggregate
 }
 
-export async function processSections({ sections, generateSection, onStatus = () => {} }) {
+export async function processSections({ sections, generateSection, onStatus = () => {}, signal = null }) {
   const output = []
 
   for (const section of sections) {
+    throwIfAborted(signal)
+
     let success = null
     let lastReason = 'unknown_failure'
     let lastErrorContext = null
 
     for (let attempt = 1; attempt <= MAX_SECTION_ATTEMPTS; attempt += 1) {
+      throwIfAborted(signal)
+
       onStatus(createAttemptLog({
         attempt,
         maxAttempts: MAX_SECTION_ATTEMPTS,
@@ -91,6 +109,7 @@ export async function processSections({ sections, generateSection, onStatus = ()
 
       try {
         const candidate = await generateSection(section, attempt, lastErrorContext)
+        throwIfAborted(signal)
         const mathAudit = auditMathBlocks([candidate.content, candidate.common_mistakes, candidate.example].join('\n'))
         const hasEmptyField = !(candidate.content || '').trim()
         const languageAuditFailed = hasExcessEnglishProse(candidate)
@@ -117,6 +136,10 @@ export async function processSections({ sections, generateSection, onStatus = ()
           status: `section:${section.heading}:${lastReason}`,
         }))
       } catch (error) {
+        if (isAbortError(error) || signal?.aborted) {
+          throw createAbortError()
+        }
+
         lastErrorContext = null
         lastReason = error?.message || 'request_failed'
         onStatus(createAttemptLog({

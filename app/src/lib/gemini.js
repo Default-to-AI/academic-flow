@@ -5,7 +5,13 @@ import {
   validateAcademicDocument,
 } from './math.js'
 import { extractPdfPages, isPdfFile, renderPdfPageImages } from './pdfText'
-import { buildProcessingState, auditPipelineOutput, processSections } from './processPipeline'
+import {
+  auditPipelineOutput,
+  buildProcessingState,
+  isAbortError,
+  processSections,
+  throwIfAborted,
+} from './processPipeline'
 import { buildSectionInputs, buildSourceOutline } from './sourceOutline'
 
 const DEFAULT_MODEL = 'gemini-2.5-flash'
@@ -220,6 +226,7 @@ export async function processDocument(file, apiKey, options = {}) {
     onStatus = () => {},
     onAudit = () => {},
     pageNumbers = null,
+    signal = null,
   } = options
 
   if (file.size > 20 * 1024 * 1024) {
@@ -233,7 +240,9 @@ export async function processDocument(file, apiKey, options = {}) {
   }
 
   try {
+    throwIfAborted(signal)
     const extractedPages = await extractSourcePages(file)
+    throwIfAborted(signal)
     const pages = Array.isArray(pageNumbers) && pageNumbers.length > 0
       ? pageNumbers.map(pageNumber => extractedPages[pageNumber - 1] || '').filter(Boolean)
       : extractedPages
@@ -251,9 +260,11 @@ export async function processDocument(file, apiKey, options = {}) {
     const pagesToRender = isPdfFile(file)
       ? [...new Set(sectionInputs.map(s => s.page))]
       : []
+    throwIfAborted(signal)
     const renderedPageImages = pagesToRender.length > 0
       ? await renderPdfPageImages(file, pagesToRender)
       : []
+    throwIfAborted(signal)
     const renderedPageImageMap = new Map(renderedPageImages.map(image => [image.pageNumber, image]))
 
     const genAI = new GoogleGenerativeAI(apiKey)
@@ -267,6 +278,7 @@ export async function processDocument(file, apiKey, options = {}) {
       sections: sectionInputs,
       onStatus: pushStatus,
       generateSection: async (section, attempt, errorContext) => {
+        throwIfAborted(signal)
         const pageImage = renderedPageImageMap.get(section.page)
         const mode = pageImage ? 'page' : 'outline'
         const parts = [buildDocumentPrompt(section, attempt, mode, errorContext)]
@@ -280,11 +292,14 @@ export async function processDocument(file, apiKey, options = {}) {
           })
         }
 
-        const result = await model.generateContent(parts)
+        const result = await model.generateContent(parts, { signal })
+        throwIfAborted(signal)
         const payload = sanitize(extractJSON(result.response.text()))
         return normalizeSectionPayload(payload, section)
       },
+      signal,
     })
+    throwIfAborted(signal)
 
     const generated = {
       title,
@@ -312,6 +327,10 @@ export async function processDocument(file, apiKey, options = {}) {
 
     return normalized
   } catch (error) {
+    if (isAbortError(error) || signal?.aborted) {
+      throw error
+    }
+
     throw new Error(toUserMessage(error))
   }
 }
