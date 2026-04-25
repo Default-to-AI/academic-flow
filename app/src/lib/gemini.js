@@ -87,6 +87,10 @@ export function normalizeModelText(text) {
     .replace(/\n+\s*\$\$/g, '\n$$')
     .replace(/\$\$\s*\$\$/g, '$$')
 
+  // Wrap LaTeX blocks with LRM (U+200E) to force LTR rendering inside RTL flow
+  normalized = normalized.replace(/\$\$([\s\S]*?)\$\$/g, (m) => `‎${m}‎`)
+  normalized = normalized.replace(/\$([^$\n]+)\$/g, (m) => `‎${m}‎`)
+
   return normalized.trim()
 }
 
@@ -234,6 +238,48 @@ export function getModel() {
   return localStorage.getItem('academicflow_model') || DEFAULT_MODEL
 }
 
+async function buildSectionInputPlan(file, options = {}) {
+  const { pageNumbers = null, signal = null } = options
+
+  throwIfAborted(signal)
+  const extractedPages = await extractSourcePages(file)
+  throwIfAborted(signal)
+
+  const pages = Array.isArray(pageNumbers) && pageNumbers.length > 0
+    ? pageNumbers.map(n => extractedPages[n - 1] || '').filter(Boolean)
+    : extractedPages
+  const usingSelectedPdfPages = isPdfFile(file) && Array.isArray(pageNumbers) && pageNumbers.length > 0
+  const selectedPageInputs = usingSelectedPdfPages
+    ? buildSelectedPageInputs(extractedPages, pageNumbers)
+    : null
+  const outline = usingSelectedPdfPages ? [] : buildSourceOutline(pages)
+  const outlineHasContentSections = outline.some(item => item.level !== 'H1')
+  const effectiveOutline = usingSelectedPdfPages
+    ? [
+        { id: 'h1-1', level: 'H1', text: `${file.name} — עמודים ${pageNumbers.join(', ')}`, page: 1 },
+        ...selectedPageInputs.map(section => ({
+          id: section.id,
+          level: 'H2',
+          text: section.heading,
+          page: section.page,
+        })),
+      ]
+    : (outlineHasContentSections ? outline : getFallbackOutline(pages, file.name))
+  const title = getTitleFromOutline(effectiveOutline, file.name)
+  const contentOutline = effectiveOutline.filter(item => item.level !== 'H1')
+  const sectionInputs = usingSelectedPdfPages
+    ? selectedPageInputs
+    : buildSectionInputs(pages, contentOutline.length > 0 ? contentOutline : effectiveOutline)
+
+  return { title, sectionInputs, effectiveOutline }
+}
+
+export async function previewDocument(file, options = {}) {
+  const { pageNumbers = null, signal = null } = options
+  if (file.size > 20 * 1024 * 1024) throw new Error('הקובץ גדול מדי — מקסימום 20MB')
+  return buildSectionInputPlan(file, { pageNumbers, signal })
+}
+
 export async function processDocument(file, apiKey, options = {}) {
   const {
     onStatus = () => {},
@@ -254,34 +300,8 @@ export async function processDocument(file, apiKey, options = {}) {
   }
 
   try {
-    throwIfAborted(signal)
-    const extractedPages = await extractSourcePages(file)
-    throwIfAborted(signal)
-    const pages = Array.isArray(pageNumbers) && pageNumbers.length > 0
-      ? pageNumbers.map(pageNumber => extractedPages[pageNumber - 1] || '').filter(Boolean)
-      : extractedPages
-    const usingSelectedPdfPages = isPdfFile(file) && Array.isArray(pageNumbers) && pageNumbers.length > 0
-    const selectedPageInputs = usingSelectedPdfPages
-      ? buildSelectedPageInputs(extractedPages, pageNumbers)
-      : null
-    const outline = usingSelectedPdfPages ? [] : buildSourceOutline(pages)
-    const outlineHasContentSections = outline.some(item => item.level !== 'H1')
-    const effectiveOutline = usingSelectedPdfPages
-      ? [
-          { id: 'h1-1', level: 'H1', text: `${file.name} — עמודים ${pageNumbers.join(', ')}`, page: 1 },
-          ...selectedPageInputs.map(section => ({
-            id: section.id,
-            level: 'H2',
-            text: section.heading,
-            page: section.page,
-          })),
-        ]
-      : (outlineHasContentSections ? outline : getFallbackOutline(pages, file.name))
-    const title = getTitleFromOutline(effectiveOutline, file.name)
-    const contentOutline = effectiveOutline.filter(item => item.level !== 'H1')
-    const sectionInputs = usingSelectedPdfPages
-      ? selectedPageInputs
-      : buildSectionInputs(pages, contentOutline.length > 0 ? contentOutline : effectiveOutline)
+    const { title, sectionInputs, effectiveOutline } = await buildSectionInputPlan(file, { pageNumbers, signal })
+
     const pagesToRender = isPdfFile(file)
       ? [...new Set(sectionInputs.map(s => s.page))]
       : []
@@ -293,10 +313,23 @@ export async function processDocument(file, apiKey, options = {}) {
     const renderedPageImageMap = new Map(renderedPageImages.map(image => [image.pageNumber, image]))
 
     const genAI = new GoogleGenerativeAI(apiKey)
+    const sectionSchema = {
+      type: 'object',
+      properties: {
+        header: { type: 'string' },
+        body: { type: 'string' },
+      },
+      required: ['header', 'body'],
+    }
+
     const model = genAI.getGenerativeModel({
       model: getModel(),
       systemInstruction: systemPromptText,
-      generationConfig: { responseMimeType: 'application/json', temperature: 0 },
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: sectionSchema,
+        temperature: 0,
+      },
     })
 
     const sections = await processSections({

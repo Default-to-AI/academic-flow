@@ -169,7 +169,8 @@ body {
 .katex,
 .katex-html {
   direction: ltr;
-  unicode-bidi: embed;
+  unicode-bidi: isolate;
+  text-align: left;
 }
 
 .math-block {

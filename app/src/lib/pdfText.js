@@ -11,6 +11,14 @@ function normalizeLine(text) {
   return text.replace(/\s+/g, ' ').trim()
 }
 
+function estimateItemFontSize(item) {
+  return Math.round(item.height || Math.abs(item.transform[0]) || 12)
+}
+
+function isBoldFont(fontName) {
+  return /bold|heavy|black/i.test(fontName || '')
+}
+
 function groupItemsIntoLines(items) {
   const lines = []
   let currentLine = []
@@ -21,8 +29,7 @@ function groupItemsIntoLines(items) {
     const y = Math.round(item.transform[5])
 
     if (lastY !== null && Math.abs(lastY - y) > 4) {
-      const lineText = normalizeLine(currentLine.map(part => part.str).join(' '))
-      if (lineText) lines.push(lineText)
+      if (currentLine.length > 0) lines.push(currentLine)
       currentLine = []
     }
 
@@ -30,10 +37,21 @@ function groupItemsIntoLines(items) {
     lastY = y
   }
 
-  const finalLine = normalizeLine(currentLine.map(part => part.str).join(' '))
-  if (finalLine) lines.push(finalLine)
-
+  if (currentLine.length > 0) lines.push(currentLine)
   return lines
+}
+
+function lineToText(lineItems) {
+  const text = normalizeLine(lineItems.map(item => item.str).join(' '))
+  if (!text) return null
+
+  const fontSize = Math.max(...lineItems.map(estimateItemFontSize))
+  const bold = lineItems.some(item => isBoldFont(item.fontName))
+
+  if (fontSize > 14 || bold) {
+    return `[Size: ${fontSize}pt, Bold: ${bold}] ${text}`
+  }
+  return text
 }
 
 export async function extractPdfPages(file) {
@@ -45,7 +63,8 @@ export async function extractPdfPages(file) {
   for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
     const page = await pdf.getPage(pageIndex)
     const textContent = await page.getTextContent()
-    const lines = groupItemsIntoLines(textContent.items)
+    const lineGroups = groupItemsIntoLines(textContent.items)
+    const lines = lineGroups.map(lineToText).filter(Boolean)
     pages.push(lines.join('\n').trim())
   }
 
