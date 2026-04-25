@@ -82,7 +82,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **Before every commit or push, increment the version in `app/package.json`.**
 
 - Format: `YYYY.N.P` — year, sequential build number, patch revision.
-- For new features or multi-file changes: increment `N` (e.g. `2026.9.1` → `2026.10.0`).
+- For new features or multi-file changes: increment `N` and reset `P` to zero. (e.g. `2026.9.1` → `2026.10.0`).
 - For isolated bug fixes or single-file patches: increment `P` (e.g. `2026.9.1` → `2026.9.2`).
 - The version bump must be included in the same commit as the change — never as a follow-up commit.
 - Do not bump the version when the only change is to `CLAUDE.md`, `AGENTS.md`, or other non-app config files.

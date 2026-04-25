@@ -26,6 +26,7 @@ tokens rather than re-reading them from a visual scan.
 **File**: `app/src/lib/gemini.js` — `buildDocumentPrompt()`
 
 **Change**:
+
 - Current scope note (mode = 'page'): `"זהו עמוד PDF. הסתמך על התמונה המצורפת קודם, והשתמש בטקסט רק כעזר."`
 - New scope note: `"זהו עמוד PDF דיגיטלי. הטקסט שלהלן הוא מקור האמת לתווים ולאופרטורים — אמת אותו ועצב אותו. השתמש בתמונה לאימות המבנה, סדר הקריאה והיררכיה בלבד."`
 
@@ -44,6 +45,7 @@ separate prompt templates per element type: `P_formula` for LaTeX-heavy sections
 **File**: `app/src/lib/gemini.js` — `buildDocumentPrompt()`
 
 **Change**:
+
 - Detect section type from `section.heading` and `section.sourceText` before building the prompt
 - Add a `sectionType` classifier: `'exercise'` (contains numbered problems),
   `'definition'` (contains הגדרה/משפט), `'mixed'` (default)
@@ -68,6 +70,7 @@ resolution (1,120 tokens/page) is required for accurate OCR of complex math.
 **Current**: `scale = 2`
 
 **Change**:
+
 - Accept a `scale` option from the caller, defaulting to `2`
 - In `gemini.js`, pass `scale: 3` when a section is classified as `exercise` or when
   `section.sourceText` contains more than 3 Unicode math characters (𝑓, 𝑥, ∈, etc.)
@@ -90,7 +93,8 @@ over-generated on the self-practice exercises.
 
 **Change** (system prompt, CONTENT FIDELITY RULES section):
 Add:
-> * **No inference rule**: Do not infer, paraphrase, or complete partial content. If a formula
+>
+> - **No inference rule**: Do not infer, paraphrase, or complete partial content. If a formula
 >   is cut off or ambiguous in the source text, render what is visible and mark it with
 >   `[?]`. Never guess what a missing operator or symbol should be.
 
@@ -121,7 +125,7 @@ manual operator fixes.
 ## Execution Order
 
 | Step | File(s) | Risk | Effort |
-|------|---------|------|--------|
+| ------ | --------- | ------ | -------- |
 | 1 — Flip prompt priority | `gemini.js` | Low | 1 line |
 | 2 — Type-specific prompts | `gemini.js` | Medium | ~30 lines |
 | 3 — Adaptive image resolution | `pdfText.js`, `gemini.js` | Low | ~10 lines |
