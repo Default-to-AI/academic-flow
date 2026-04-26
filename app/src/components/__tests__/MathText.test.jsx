@@ -30,4 +30,11 @@ describe('MathText', () => {
     expect(container.textContent).toContain('פונקציה רציפה אם ניתן לצייר אותה מבלי להרים את העט מהדף.')
     expect(container.querySelectorAll('br')).toHaveLength(0)
   })
+
+  it('renders markdown images as inline <img> tags', () => {
+    const container = render(<MathText text={'![עמוד 3](data:image/png;base64,AAAA)'} />)
+    const img = container.querySelector('img')
+    expect(img).not.toBeNull()
+    expect(img.getAttribute('src')).toContain('data:image/png;base64,AAAA')
+  })
 })

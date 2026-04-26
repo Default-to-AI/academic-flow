@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import MathText from '../../components/MathText'
 import { auditMathBlocks } from '../mathAudit'
+import { normalizeMathText } from '../math.js'
 
 describe('auditMathBlocks', () => {
   it('passes balanced inline and block LaTeX', () => {
@@ -30,5 +31,11 @@ describe('MathText rendering', () => {
 
     expect(html).toContain('doc-list-item')
     expect(html).toContain('math-block')
+  })
+})
+
+describe('normalizeMathText', () => {
+  it('normalizes unicode math alphabet characters into plain ASCII', () => {
+    expect(normalizeMathText('𝑓(𝑥)=ⅇ𝑥+ℝ')).toContain('f(x)=ex+R')
   })
 })
