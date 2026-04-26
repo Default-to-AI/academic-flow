@@ -48,12 +48,21 @@ function buildFallbackSection(section, reason) {
     ? 'המערכת זיהתה שהתוכן חזר בשפה או בפורמט לא תקינים.'
     : 'המערכת לא הצליחה לעבד את הסעיף הזה בצורה מלאה.'
 
+  const pageImage = section?.pageImage
+  const pageImageUrl = pageImage?.mimeType && pageImage?.data
+    ? `data:${pageImage.mimeType};base64,${pageImage.data}`
+    : null
+
   return {
     header: section.heading,
     body: [
       '**שחזור אוטומטי חלקי**',
-      `${userMessage} לכן מצורף קטע המקור כפי שחולץ מהקובץ:`,
-      excerpt || 'לא חולץ טקסט זמין מהמקור עבור סעיף זה.',
+      pageImageUrl
+        ? `${userMessage} מצורף צילום העמוד המקורי:`
+        : `${userMessage} לכן מצורף קטע המקור כפי שחולץ מהקובץ:`,
+      pageImageUrl
+        ? `![עמוד ${section.page || ''}](${pageImageUrl})`
+        : (excerpt || 'לא חולץ טקסט זמין מהמקור עבור סעיף זה.'),
     ].join('\n\n'),
     _fallback: true,
     _page: section.page,

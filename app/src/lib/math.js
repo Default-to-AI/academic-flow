@@ -2,6 +2,13 @@ import katex from 'katex'
 
 const RAW_LATEX_PATTERN = /\\(?:begin\{[^}]+\}|end\{[^}]+\}|[a-zA-Z]+)/
 const COMPLEX_INLINE_ENV_PATTERN = /\\begin\{(?:cases|aligned|matrix|pmatrix|bmatrix|vmatrix|Vmatrix|align\*?)\}/
+const PDF_MATH_UNICODE_PATTERN = /[\u{1D400}-\u{1D7FF}\u2102\u2115\u211A\u211D\u2124\u2147]/u
+
+function normalizePdfMathUnicode(text) {
+  if (!text) return ''
+  if (!PDF_MATH_UNICODE_PATTERN.test(text)) return text
+  return text.normalize('NFKD')
+}
 
 function isEscaped(text, index) {
   let backslashes = 0
@@ -75,7 +82,7 @@ export function splitMathSegments(text = '') {
 }
 
 export function normalizeMathText(text = '') {
-  const normalizedDelimiters = text
+  const normalizedDelimiters = normalizePdfMathUnicode(text)
     .replace(/\\\$\$/g, '$$')
     .replace(/\\\$/g, '$')
 

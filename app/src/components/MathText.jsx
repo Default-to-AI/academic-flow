@@ -7,7 +7,7 @@ function renderKatex(formula, displayMode) {
 
 // Single-pass tokenizer: handles $$block$$, $inline$, **bold**, __underline__
 function tokenize(text) {
-  const regex = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\*\*[^*]+?\*\*|__[^_\n]+?__)/g
+  const regex = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\*\*[^*]+?\*\*|__[^_\n]+?__|!\[[^\]\n]*?\]\([^) \n]+?\))/g
   const parts = []
   let lastIndex = 0
   let match
@@ -21,6 +21,11 @@ function tokenize(text) {
       parts.push({ type: 'bold', value: token.slice(2, -2) })
     } else if (token.startsWith('__')) {
       parts.push({ type: 'underline', value: token.slice(2, -2) })
+    } else if (token.startsWith('![')) {
+      const closeAlt = token.indexOf('](')
+      const alt = closeAlt > -1 ? token.slice(2, closeAlt) : ''
+      const url = closeAlt > -1 ? token.slice(closeAlt + 2, -1) : ''
+      parts.push({ type: 'image', alt, url })
     } else if (token.startsWith('$$')) {
       parts.push({ type: 'block', value: token.slice(2, -2).trim() })
     } else {
@@ -40,6 +45,23 @@ function renderPart(part, key) {
   switch (part.type) {
     case 'text':
       return <span key={key}>{part.value}</span>
+    case 'image': {
+      const url = part.url || ''
+      const alt = part.alt || ''
+      const isSafeImage = url.startsWith('data:image/') || url.startsWith('blob:')
+      if (!isSafeImage) {
+        return <span key={key}>{`![${alt}](${url})`}</span>
+      }
+      return (
+        <img
+          key={key}
+          src={url}
+          alt={alt}
+          className="doc-inline-image"
+          style={{ maxWidth: '100%', height: 'auto' }}
+        />
+      )
+    }
     case 'bold':
       // Bold content may itself contain __underline__ or inline LaTeX — recurse
       return (
